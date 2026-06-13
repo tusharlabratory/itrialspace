@@ -1,0 +1,46 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M10_MultiNod
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode10_multi_nodule_realism.out
+#SBATCH --error=logs/mode10_multi_nodule_realism.err
+
+echo "=== iTrialSpace Trial Mode 10: Multi-Nodule Realism Study ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_DIR="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode10_multi_nodule_realism"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# Multi-nodule realism study — creates two sub-cohorts:
+#   1. Single-nodule cases (75%)
+#   2. Multi-nodule cases with companions (25%)
+#
+# In NLST, ~25% of screened patients have multiple nodules.
+# N_CASES=500   # real run (commented for 5-case smoke test)
+N_CASES=5
+MULTI_NODULE_FRACTION=0.25
+COMPANION_STRATEGY="all_companions"
+TEMPLATE="NLST"
+SEED=42
+
+# ── Run ────────────────────────────────────────────────────────────────────
+python3 "$RUNNER" \
+    --mode multi_nodule \
+    --output-dir "$OUTPUT_DIR" \
+    --n-cases $N_CASES \
+    --multi-nodule-fraction $MULTI_NODULE_FRACTION \
+    --companion-strategy "$COMPANION_STRATEGY" \
+    --template "$TEMPLATE" \
+    --seed $SEED
+
+echo "Finished: $(date)"

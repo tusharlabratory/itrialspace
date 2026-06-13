@@ -1,0 +1,44 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M3_Location
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode3_location_sensitivity.out
+#SBATCH --error=logs/mode3_location_sensitivity.err
+
+echo "=== iTrialSpace Trial Mode 3: Location Sensitivity ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"; itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_DIR="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode3_location_sensitivity"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# Produces 5 manifests (one per lobe: RUL, RML, RLL, LUL, LLL)
+# Same nodule size range, varies only anatomical location
+# N_PER_LOBE=100            # Cases per lobe   # real run (commented for 5-case smoke test)
+N_PER_LOBE=5            # Cases per lobe
+LABEL=1                   # 1=malignant
+DIAM_MIN=6.0              # Minimum diameter (mm)
+DIAM_MAX=15.0             # Maximum diameter (mm)
+TEMPLATE="NLST"
+SEED=42
+
+# ── Run ────────────────────────────────────────────────────────────────────
+python3 "$RUNNER" \
+    --mode location_sensitivity \
+    --output-dir "$OUTPUT_DIR" \
+    --n-per-lobe $N_PER_LOBE \
+    --label $LABEL \
+    --diam-min $DIAM_MIN \
+    --diam-max $DIAM_MAX \
+    --template "$TEMPLATE" \
+    --seed $SEED
+
+echo "Finished: $(date)"

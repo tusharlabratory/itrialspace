@@ -1,0 +1,79 @@
+#!/bin/bash
+# ============================================================================
+# Template: iTrialSpace masks -> NodMAISI CT synthesis
+#
+# Generic SLURM template for running the integration pipeline.
+# All parameters are configurable via environment variables.
+#
+# Usage:
+#   AUDIT_PATH=/path/to/audit.json OUT_DIR=/scratch/.../out sbatch template_nodmaisi_from_masks.sub
+#   MASK_ROOT=/path/to/masks OUT_DIR=/scratch/.../out sbatch template_nodmaisi_from_masks.sub
+# ============================================================================
+
+#SBATCH --job-name=iTS_NodMAISI
+#SBATCH --partition=vram48
+#SBATCH --ntasks=1
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=64G
+#SBATCH --time=24:00:00
+#SBATCH --output=logs/iTS_NodMAISI_%j.out
+#SBATCH --error=logs/iTS_NodMAISI_%j.err
+
+# ── Load shared environment (PROJ_DIR, ITRIALSPACE_*, conda) — before any var use ──
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+
+set -euo pipefail
+
+# -- Configurable paths (override via environment) --
+NOMAISI_DIR="${NOMAISI_DIR:-${PROJ_DIR}/src/itrialspace/synthesis}"
+CONFIG_PATH="${CONFIG_PATH:-${NOMAISI_DIR}/tools/integration_config.yaml}"
+AUDIT_PATH="${AUDIT_PATH:-}"
+MASK_ROOT="${MASK_ROOT:-}"
+OUT_DIR="${OUT_DIR:-${ITRIALSPACE_OUTPUT_DIR}/generated_cts/default}"
+DRY_RUN="${DRY_RUN:-false}"
+CASE_IDS="${CASE_IDS:-}"
+VERBOSE="${VERBOSE:--v}"
+
+echo "=================================================================="
+echo " iTrialSpace -> NodMAISI CT Synthesis Pipeline"
+echo " Job ID: ${SLURM_JOB_ID:-local}  Node: $(hostname)  Date: $(date)"
+echo "=================================================================="
+echo " AUDIT_PATH  : ${AUDIT_PATH:-<not set>}"
+echo " MASK_ROOT   : ${MASK_ROOT:-<not set>}"
+echo " OUT_DIR     : ${OUT_DIR}"
+echo " CONFIG_PATH : ${CONFIG_PATH}"
+echo " DRY_RUN     : ${DRY_RUN}"
+echo ""
+
+# -- Environment setup --
+export MONAI_DATA_DIRECTORY="${NOMAISI_DIR}/"
+export PYTHONPATH="${NOMAISI_DIR}:${PYTHONPATH:-}"
+
+mkdir -p "${OUT_DIR}"
+
+# -- Build command --
+CMD="python ${NOMAISI_DIR}/tools/run_itrialspace_to_ct.py"
+CMD+=" --config ${CONFIG_PATH}"
+CMD+=" --outdir ${OUT_DIR}"
+CMD+=" ${VERBOSE}"
+
+if [ -n "${AUDIT_PATH}" ]; then
+    CMD+=" --audit ${AUDIT_PATH}"
+elif [ -n "${MASK_ROOT}" ]; then
+    CMD+=" --mask-root ${MASK_ROOT}"
+else
+    echo "FATAL: Set either AUDIT_PATH or MASK_ROOT"
+    exit 1
+fi
+
+[ "${DRY_RUN}" = "true" ] && CMD+=" --dry-run"
+[ -n "${CASE_IDS}" ] && CMD+=" --case-ids ${CASE_IDS}"
+
+echo "Command: ${CMD}"
+eval ${CMD}
+EXIT_CODE=$?
+echo "Finished: $(date)  Exit: ${EXIT_CODE}"
+exit ${EXIT_CODE}

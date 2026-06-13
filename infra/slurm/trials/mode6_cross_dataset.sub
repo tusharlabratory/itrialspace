@@ -1,0 +1,38 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M6_CrossDS
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode6_cross_dataset.out
+#SBATCH --error=logs/mode6_cross_dataset.err
+
+echo "=== iTrialSpace Trial Mode 6: Cross-Dataset Generalization ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"; itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_DIR="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode6_cross_dataset"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# One manifest per dataset as sole nodule donor
+# Tests whether algorithm performance varies by data source
+# N_CASES=300   # real run (commented for 5-case smoke test)
+N_CASES=5
+DATASETS="DLCS24,LUNA25,LNDbv4,IMDCT,LUNGx"    # 5 datasets
+SEED=42
+
+# ── Run ────────────────────────────────────────────────────────────────────
+python3 "$RUNNER" \
+    --mode cross_dataset \
+    --output-dir "$OUTPUT_DIR" \
+    --n-cases $N_CASES \
+    --datasets "$DATASETS" \
+    --seed $SEED
+
+echo "Finished: $(date)"

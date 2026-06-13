@@ -1,0 +1,76 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M13_DTcross
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode13_digital_twin_cross.out
+#SBATCH --error=logs/mode13_digital_twin_cross.err
+
+echo "=== iTrialSpace Trial Mode 13: Digital Twin Cross ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_BASE="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode13_digital_twin_cross"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# Digital twin cross — donor nodules from one patient inserted into a
+# different patient's anatomy.  Each host×donor dataset pair produces a
+# separate manifest.
+SEED=42
+
+# Host datasets provide anatomy; donor datasets provide nodules.
+# Adjust these arrays for your experimental design.
+# HOST_DATASETS=("DLCS24" "LUNA25" "LUNA16" "LUNGx" "LNDbv4" "NSCLCR" "IMDCT")   # real run
+HOST_DATASETS=("DLCS24")   # sample
+# DONOR_DATASETS=("DLCS24" "LUNA25" "LUNA16" "LUNGx" "LNDbv4" "NSCLCR" "IMDCT")   # real run
+DONOR_DATASETS=("LUNA25")   # sample
+
+# Pairing configuration (override with env vars if needed)
+DONOR_TRANSFER_MODE="${DONOR_TRANSFER_MODE:-single}"
+PAIRING_POLICY="${PAIRING_POLICY:-one_to_one}"
+PLACEMENT_STRATEGY="${PLACEMENT_STRATEGY:-profile_faithful_transfer}"
+
+# Cap donor nodules per cross-pair to ~250 for a ~10k total budget.
+# LUNGx has only 83 donors so it uses all of them; others cap at 250.
+MAX_DONOR_NODULES="${MAX_DONOR_NODULES:-5}"   # sample (real: 250)
+
+# ── Run ────────────────────────────────────────────────────────────────────
+for HOST_DS in "${HOST_DATASETS[@]}"; do
+    for DONOR_DS in "${DONOR_DATASETS[@]}"; do
+        # Skip same-dataset pairs (that's what modes 11/12 are for)
+        if [ "$HOST_DS" = "$DONOR_DS" ]; then
+            echo "  Skipping same-dataset pair: ${HOST_DS} × ${DONOR_DS}"
+            continue
+        fi
+
+        echo ""
+        echo "──────────────────────────────────────────────────────────────"
+        echo " Host: ${HOST_DS}  ×  Donor: ${DONOR_DS}"
+        echo "──────────────────────────────────────────────────────────────"
+
+        python3 "$RUNNER" \
+            --mode digital_twin_cross \
+            --output-dir "${OUTPUT_BASE}/${HOST_DS}_x_${DONOR_DS}" \
+            --host-dataset "$HOST_DS" \
+            --donor-dataset "$DONOR_DS" \
+            --max-host-patients 5 \
+            --max-donor-nodules "$MAX_DONOR_NODULES" \
+            --donor-transfer-mode "$DONOR_TRANSFER_MODE" \
+            --pairing-policy "$PAIRING_POLICY" \
+            --placement-strategy "$PLACEMENT_STRATEGY" \
+            --seed $SEED
+
+        echo "  ${HOST_DS} × ${DONOR_DS} done: $(date)"
+    done
+done
+
+echo ""
+echo "All dataset pairs finished: $(date)"

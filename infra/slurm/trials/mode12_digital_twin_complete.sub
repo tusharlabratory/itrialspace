@@ -1,0 +1,51 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M12_DTcomp
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode12_digital_twin_complete.out
+#SBATCH --error=logs/mode12_digital_twin_complete.err
+
+echo "=== iTrialSpace Trial Mode 12: Digital Twin Complete ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_BASE="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode12_digital_twin_complete"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# Digital twin complete — one case per CT scan containing ALL native nodules
+# from that CT. Matching is at the CT-scan level: patients with multiple CT
+# scans (e.g. LUNA25) produce one case per CT, not one case per patient.
+# Runs --all-patients for every dataset.
+SEED=42
+
+# DATASETS=("DLCS24" "LUNA25" "LUNA16" "LUNGx" "LNDbv4" "NSCLCR" "IMDCT")   # real run
+DATASETS=("DLCS24")   # sample
+
+# ── Run ────────────────────────────────────────────────────────────────────
+for DS in "${DATASETS[@]}"; do
+    echo ""
+    echo "──────────────────────────────────────────────────────────────"
+    echo " Dataset: ${DS}"
+    echo "──────────────────────────────────────────────────────────────"
+
+    python3 "$RUNNER" \
+        --mode digital_twin_complete \
+        --output-dir "${OUTPUT_BASE}/${DS}" \
+        --dataset "$DS" \
+        --max-patients 5 \
+        --seed $SEED
+
+    echo "  ${DS} done: $(date)"
+done
+
+echo ""
+echo "All datasets finished: $(date)"

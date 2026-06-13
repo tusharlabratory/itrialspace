@@ -1,0 +1,114 @@
+#!/bin/bash
+# ============================================================================
+# iTrialSpace -> NodMAISI CT Synthesis — SLURM Array Job (any mode)
+#
+# Processes each case as a separate SLURM array task (one case per GPU).
+# Works with both audit.json and --mask-root discovery.
+#
+# Required env vars:
+#   TRIAL_MODE    - e.g., mode1_controlled_prevalence
+#   CASE_LIST     - path to a text file with one case ID per line
+#
+# Optional env vars (with defaults):
+#   AUDIT_PATH    - path to iTrialSpace audit.json (preferred)
+#   MASK_ROOT     - directory of inserted mask NIfTIs (fallback)
+#   OUT_DIR       - output directory for generated CTs
+#   CONFIG_PATH   - integration config YAML
+#
+# Usage:
+#   # Step 1: Generate case list
+#   python3 scripts/gen_case_list.py --mode mode1_controlled_prevalence
+#   # Step 2: Submit array job
+#   N=$(wc -l < /tmp/mode1_controlled_prevalence_cases.txt)
+#   sbatch --array=0-$((N-1))%10 \
+#       --export=ALL,TRIAL_MODE=mode1_controlled_prevalence \
+#       nodmaisi_array.sub
+# ============================================================================
+
+#SBATCH --job-name=NM_arr
+#SBATCH --partition=vram48
+#SBATCH --ntasks=1
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=64G
+#SBATCH --time=02:00:00
+#SBATCH --output=logs/NM_%x_%A_%a.out
+#SBATCH --error=logs/NM_%x_%A_%a.err
+
+# ── Load shared environment (PROJ_DIR, ITRIALSPACE_*, conda) — before any var use ──
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+
+set -euo pipefail
+
+# ── Configurable paths ───────────────────────────────────────────────────────
+NOMAISI_DIR="${PROJ_DIR}/src/itrialspace/synthesis"
+ITRIALSPACE_BASE="${ITRIALSPACE_OUTPUT_DIR}"
+
+TRIAL_MODE="${TRIAL_MODE:?ERROR: TRIAL_MODE must be set}"
+CASE_LIST="${CASE_LIST:-${ITRIALSPACE_BASE}/nodmaisi_case_lists/${TRIAL_MODE}_cases.txt}"
+
+AUDIT_PATH="${AUDIT_PATH:-${ITRIALSPACE_BASE}/inserted_masks/${TRIAL_MODE}/audit.json}"
+MASK_ROOT="${MASK_ROOT:-${ITRIALSPACE_BASE}/inserted_masks/${TRIAL_MODE}}"
+OUT_DIR="${OUT_DIR:-${ITRIALSPACE_BASE}/generated_cts/${TRIAL_MODE}}"
+CONFIG_PATH="${CONFIG_PATH:-${NOMAISI_DIR}/tools/integration_config.yaml}"
+
+# ── Read case ID for this array task ─────────────────────────────────────────
+if [ ! -f "${CASE_LIST}" ]; then
+    echo "FATAL: Case list not found: ${CASE_LIST}"
+    echo "Generate it first with: python3 scripts/gen_case_list.py --mode ${TRIAL_MODE}"
+    exit 1
+fi
+
+# CASE_OFFSET allows chunked array jobs (default 0 for backward compat)
+CASE_OFFSET=${CASE_OFFSET:-0}
+LINE_NUM=$(( SLURM_ARRAY_TASK_ID + CASE_OFFSET + 1 ))
+
+CASE_ID=$(sed -n "${LINE_NUM}p" "${CASE_LIST}")
+if [ -z "${CASE_ID}" ]; then
+    echo "FATAL: No case ID at line ${LINE_NUM} (array_idx=${SLURM_ARRAY_TASK_ID}, offset=${CASE_OFFSET}) in ${CASE_LIST}"
+    exit 1
+fi
+
+# ── Banner ───────────────────────────────────────────────────────────────────
+echo "=================================================================="
+echo " NodMAISI CT Synthesis — ${TRIAL_MODE} — Case ${CASE_ID}"
+echo " Array Job: ${SLURM_ARRAY_JOB_ID}  Task: ${SLURM_ARRAY_TASK_ID}"
+echo " Node: $(hostname)  Date: $(date)"
+echo "=================================================================="
+echo " CASE_LIST   : ${CASE_LIST}"
+echo " AUDIT_PATH  : ${AUDIT_PATH}"
+echo " MASK_ROOT   : ${MASK_ROOT}"
+echo " OUT_DIR     : ${OUT_DIR}"
+echo ""
+
+# ── Environment ──────────────────────────────────────────────────────────────
+export MONAI_DATA_DIRECTORY="${NOMAISI_DIR}/"
+export PYTHONPATH="${NOMAISI_DIR}:${PYTHONPATH:-}"
+export LD_LIBRARY_PATH="$(python -c 'import os,nvidia.cudnn;print(os.path.dirname(nvidia.cudnn.__file__)+"/lib")' 2>/dev/null):${LD_LIBRARY_PATH:-}"
+
+mkdir -p "${OUT_DIR}"
+
+# ── Build command — prefer audit.json, fallback to mask-root ─────────────────
+CMD=(
+    python "${NOMAISI_DIR}/tools/run_itrialspace_to_ct.py"
+    --config "${CONFIG_PATH}"
+    --outdir "${OUT_DIR}"
+    --case-ids "${CASE_ID}"
+    -v
+)
+
+if [ -f "${AUDIT_PATH}" ]; then
+    CMD+=(--audit "${AUDIT_PATH}")
+else
+    CMD+=(--mask-root "${MASK_ROOT}")
+fi
+
+echo "Command: ${CMD[*]}"
+"${CMD[@]}"
+EXIT_CODE=$?
+
+echo ""
+echo "Finished case ${CASE_ID}: $(date)  Exit: ${EXIT_CODE}"
+exit ${EXIT_CODE}

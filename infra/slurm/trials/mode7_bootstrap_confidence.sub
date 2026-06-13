@@ -1,0 +1,44 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M7_Bootstrap
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode7_bootstrap_confidence.out
+#SBATCH --error=logs/mode7_bootstrap_confidence.err
+
+echo "=== iTrialSpace Trial Mode 7: Bootstrap Confidence Intervals ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"; itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_DIR="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode7_bootstrap_confidence"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# N independent bootstrap replicates of a base cohort
+# Use to compute confidence intervals on algorithm performance metrics
+# N_CASES=200               # Cases per replicate   # real run (commented for 5-case smoke test)
+N_CASES=5               # Cases per replicate
+PREVALENCE=0.05           # Base prevalence
+# N_BOOTSTRAP=20           # Number of bootstrap replicates   # real run (commented for 5-case smoke test)
+N_BOOTSTRAP=3           # Number of bootstrap replicates
+TEMPLATE="NLST"
+SEED=42
+
+# ── Run ────────────────────────────────────────────────────────────────────
+python3 "$RUNNER" \
+    --mode bootstrap_confidence \
+    --output-dir "$OUTPUT_DIR" \
+    --n-cases $N_CASES \
+    --prevalence $PREVALENCE \
+    --n-bootstrap $N_BOOTSTRAP \
+    --template "$TEMPLATE" \
+    --seed $SEED \
+    --no-verify-paths         # Skip path check for 100 replicates (too slow)
+
+echo "Finished: $(date)"

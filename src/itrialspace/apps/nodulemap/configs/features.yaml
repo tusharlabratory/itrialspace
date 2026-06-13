@@ -1,0 +1,111 @@
+# Feature-set definitions for NoduleMap embeddings.
+# Each feature set defines the columns used, their types, and preprocessing.
+
+feature_sets:
+
+  # ── reinsertion_core ──────────────────────────────────────────────────────
+  # Safe default: uses only reinsertion_* columns (100% complete, no NaNs).
+  reinsertion_core:
+    description: "Reinsertion-only features — no NaNs, 12 columns"
+    numeric:
+      - reinsertion_lobe_cc_pct
+      - reinsertion_lobe_ml_pct
+      - reinsertion_lobe_ap_pct
+      - reinsertion_lung_cc_pct
+      - reinsertion_lung_ml_pct
+      - reinsertion_lung_ap_pct
+      - reinsertion_pleural_dist_mm
+      - reinsertion_airway_dist_mm
+      - reinsertion_nodule_diam_mm
+    categorical:
+      - reinsertion_lobe
+      - reinsertion_lung_side
+      - reinsertion_lung_zone
+    scaler: standard       # standard | robust
+    imputer: none          # none | median | mean
+
+  # ── core_53 ───────────────────────────────────────────────────────────────
+  # Full 53-column profile: anatomy, distances, inter-nodule, reinsertion.
+  # May contain NaNs in non-reinsertion columns.
+  core_53:
+    description: "All 53 core pipeline features — requires imputation"
+    numeric:
+      - nodule_mean_diam_mm
+      - nodule_vol_mm3
+      - cranio_caudal_pct
+      - mediolateral_pct
+      - anteroposterior_pct
+      - lobe_cc_pct
+      - lobe_ml_pct
+      - lobe_ap_pct
+      - dist_to_trachea_mm
+      - dist_to_aorta_mm
+      - dist_to_heart_mm
+      - dist_to_esophagus_mm
+      - dist_to_pulmonary_vein_mm
+      - dist_to_superior_vena_cava_mm
+      - pleural_distance_mm
+      - airway_distance_mm
+      - n_nodules_in_patient
+      - nearest_nodule_dist_mm
+      - nearest_dx_mm
+      - nearest_dy_mm
+      - nearest_dz_mm
+      - reinsertion_lobe_cc_pct
+      - reinsertion_lobe_ml_pct
+      - reinsertion_lobe_ap_pct
+      - reinsertion_lung_cc_pct
+      - reinsertion_lung_ml_pct
+      - reinsertion_lung_ap_pct
+      - reinsertion_pleural_dist_mm
+      - reinsertion_airway_dist_mm
+      - reinsertion_nodule_diam_mm
+    categorical:
+      - lobe_name
+      - lung_side
+      - lung_zone
+      - central_peripheral
+      - reinsertion_lobe
+      - reinsertion_lung_side
+      - reinsertion_lung_zone
+    scaler: robust
+    imputer: median
+
+# ── Embedding model presets ────────────────────────────────────────────────
+models:
+
+  PCA_2D:
+    algorithm: pca
+    n_components: 2
+
+  PCA_32:
+    algorithm: pca
+    n_components: 32
+
+  UMAP_2D:
+    algorithm: umap
+    n_components: 2
+    n_neighbors: 30
+    min_dist: 0.3
+    metric: euclidean
+
+  UMAP_16:
+    algorithm: umap
+    n_components: 16
+    n_neighbors: 30
+    min_dist: 0.1
+    metric: euclidean
+
+  UMAP_32:
+    algorithm: umap
+    n_components: 32
+    n_neighbors: 30
+    min_dist: 0.1
+    metric: euclidean
+
+  TSNE_2D:
+    algorithm: tsne
+    n_components: 2
+    perplexity: 30
+    learning_rate: auto
+    n_iter: 1000

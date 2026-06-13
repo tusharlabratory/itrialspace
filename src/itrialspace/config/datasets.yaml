@@ -1,0 +1,35 @@
+# iTrialSpace Dataset Registry — maps dataset name → nodule-profile CSV path.
+#
+# Copy to `configs/datasets.yaml` and adjust if your layout differs. Paths use the
+# ${ITRIALSPACE_DATA_DIR} placeholder, which is expanded by itrialspace.config.settings
+# (default: ~/.itrialspace/data). You usually only need to set ITRIALSPACE_DATA_DIR in .env.
+
+datasets:
+
+  DLCS24:
+    csv_path: ${ITRIALSPACE_DATA_DIR}/profiles/DLCS24_nodule_profiles.csv
+    notes: "Binary label. Lung-RADS scores, smoking, age/sex. 2,487 nodules."
+
+  LUNA25:
+    csv_path: ${ITRIALSPACE_DATA_DIR}/profiles/LUNA25_nodule_profiles.csv
+    notes: "Binary label. Largest dataset (6,163 nodules). Multi-nodule screening."
+
+  LUNA16:
+    csv_path: ${ITRIALSPACE_DATA_DIR}/profiles/LUNA16_nodule_profiles.csv
+    notes: "No malignancy label. Use for reinsertion/anatomy analysis only."
+
+  LUNGx:
+    csv_path: ${ITRIALSPACE_DATA_DIR}/profiles/LUNGx_nodule_profiles.csv
+    notes: "Benchmark challenge. 49.4% malignant."
+
+  LNDbv4:
+    csv_path: ${ITRIALSPACE_DATA_DIR}/profiles/LNDbv4_nodule_profiles.csv
+    notes: "Malignancy is continuous float (radiologist avg 1-5). Threshold 3.0 used."
+
+  NSCLCR:
+    csv_path: ${ITRIALSPACE_DATA_DIR}/profiles/NSCLCR_nodule_profiles.csv
+    notes: "All malignant (100%). Large tumours (median 52mm). Has staging/survival."
+
+  IMDCT:
+    csv_path: ${ITRIALSPACE_DATA_DIR}/profiles/IMDCT_nodule_profiles.csv
+    notes: "Label is string benign/cancer. Has nodule type, PET, spiculation."

@@ -1,0 +1,34 @@
+#!/bin/bash
+#SBATCH --partition=defq
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=00:30:00
+#SBATCH --output=${PROJ_DIR}/src/itrialspace/synthesis/slurm_nodmaisi/logs/audit_%x_%j.out
+#SBATCH --error=${PROJ_DIR}/src/itrialspace/synthesis/slurm_nodmaisi/logs/audit_%x_%j.err
+
+# ── Load shared environment (PROJ_DIR, ITRIALSPACE_*, conda) — before any var use ──
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+
+# Post-run audit job — runs after all NodMAISI array tasks finish.
+# Scans the mode output directory and writes pipeline_summary.json.
+#
+# Required exports: TRIAL_MODE, OUT_DIR, MASK_DIR
+
+set -euo pipefail
+
+SCRIPT_DIR="${PROJ_DIR}/src/itrialspace/synthesis/slurm_nodmaisi"
+
+echo "========================================"
+echo " Post-run Audit: ${TRIAL_MODE}"
+echo " Output dir:     ${OUT_DIR}"
+echo " Mask dir:       ${MASK_DIR}"
+echo " Time:           $(date)"
+echo "========================================"
+
+python3 "${SCRIPT_DIR}/audit_mode.py" "${OUT_DIR}" --mask-dir "${MASK_DIR}"
+
+echo ""
+echo "Audit complete at $(date)"

@@ -1,0 +1,120 @@
+#!/bin/bash
+#SBATCH --job-name=iTrialSpace_CLI
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=1:00:00
+#SBATCH --output=logs/retriever-cli-%j.out
+#SBATCH --error=logs/retriever-cli-%j.err
+
+# ===========================================================================
+#  iTrialSpace Retriever — Mode 3: CLI batch job
+#
+#  Submit:  sbatch retriever_cli.sub
+#  Check:   squeue -u $USER
+#  Output:  logs/retriever-cli-<JOBID>.out
+#           exports/  (CSV / JSON files)
+#
+#  Edit the CLI_COMMANDS section below to run your queries.
+# ===========================================================================
+
+echo "======================================"
+echo "  iTrialSpace Retriever — CLI Mode"
+echo "  Node:   $(hostname)"
+echo "  Date:   $(date)"
+echo "  Job ID: $SLURM_JOB_ID"
+echo "======================================"
+
+# ── Environment ──────────────────────────────────────────────────────────
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+APP_DIR="${PROJ_DIR}"
+cd "$APP_DIR"
+
+# Create output dirs
+mkdir -p logs exports
+
+# ══════════════════════════════════════════════════════════════════════════
+#  CLI COMMANDS — edit these to customise your batch queries
+# ══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "=================================================================="
+echo "  1. Index summary"
+echo "=================================================================="
+python -m itrialspace.apps.retriever.cli info
+
+echo ""
+echo "=================================================================="
+echo "  2. Search: all malignant nodules in RUL"
+echo "=================================================================="
+python -m itrialspace.apps.retriever.cli search \
+    --label 1 \
+    --lobe right_lung_upper_lobe \
+    --limit 50
+
+echo ""
+echo "=================================================================="
+echo "  3. Similarity: top-10 similar to DLCS_0001_01"
+echo "=================================================================="
+python -m itrialspace.apps.retriever.cli similar \
+    --id DLCS_0001_01 \
+    --k 10
+
+echo ""
+echo "=================================================================="
+echo "  4. Reinsertion match: LUL, 12mm diameter, 50% CC"
+echo "=================================================================="
+python -m itrialspace.apps.retriever.cli match \
+    --lobe left_lung_upper_lobe \
+    --diameter 12 \
+    --cc-pct 50 \
+    --k 10
+
+echo ""
+echo "=================================================================="
+echo "  5. Nodule detail (JSON)"
+echo "=================================================================="
+python -m itrialspace.apps.retriever.cli detail \
+    --id DLCS_0001_01 \
+    --json
+
+echo ""
+echo "=================================================================="
+echo "  6. Export: all malignant nodules → CSV"
+echo "=================================================================="
+python -m itrialspace.apps.retriever.cli export \
+    --label 1 \
+    --include-paths \
+    --format csv \
+    -o exports/malignant_nodules.csv
+
+echo ""
+echo "=================================================================="
+echo "  7. Export: all LUNA16 + LUNA25 benign → JSON"
+echo "=================================================================="
+python -m itrialspace.apps.retriever.cli export \
+    --label 0 \
+    --datasets LUNA16 LUNA25 \
+    --format json \
+    -o exports/luna_benign.json
+
+echo ""
+echo "=================================================================="
+echo "  8. Export: large nodules (>15mm) across all datasets → CSV"
+echo "=================================================================="
+python -m itrialspace.apps.retriever.cli export \
+    --diam-min 15 \
+    --format csv \
+    -o exports/large_nodules_gt15mm.csv
+
+echo ""
+echo "======================================"
+echo "  All commands completed"
+echo "  Exports saved to: $APP_DIR/exports/"
+echo "  Date: $(date)"
+echo "======================================"
+ls -lh exports/

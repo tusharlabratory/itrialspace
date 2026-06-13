@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+title: "iTrialSpace — Synthetic Imaging Clinical Trial Engine"
+message: "If you use this software or dataset, please cite the paper below."
+type: software
+authors:
+  - family-names: "Tushar"
+    given-names: "Fakrul Islam"
+  - family-names: "Momy"
+    given-names: "Umme Hafsa"
+  - family-names: "Lo"
+    given-names: "Joseph Y."
+  - family-names: "Rubin"
+    given-names: "Geoffrey D."
+repository-code: "https://github.com/tusharlabratory/itrialspace"
+abstract: >-
+  iTrialSpace is a framework for constructing programmable virtual lesion trials
+  for controlled evaluation of lung CT models. It harmonizes 13,140 nodule profiles
+  from 7 public datasets, generates cohort manifests across 13 trial modes, inserts
+  donor nodule masks into host CT anatomy, synthesizes CT volumes with a
+  ControlNet-conditioned diffusion model (NodMAISI), and evaluates CADe/CADx
+  detectors and vision-language models under controlled conditions.
+keywords:
+  - medical imaging
+  - lung CT
+  - synthetic data
+  - virtual clinical trial
+  - vision-language models
+version: "0.1.0"
+# PolyForm Noncommercial 1.0.0 is not an SPDX id, so use license-url (CFF-valid).
+license-url: "https://polyformproject.org/licenses/noncommercial/1.0.0/"
+preferred-citation:
+  type: article
+  title: "iTRIALSPACE: Programmable Virtual Lesion Trials for Controlled Evaluation of Lung CT Models"
+  authors:
+    - family-names: "Tushar"
+      given-names: "Fakrul Islam"
+    - family-names: "Momy"
+      given-names: "Umme Hafsa"
+    - family-names: "Lo"
+      given-names: "Joseph Y."
+    - family-names: "Rubin"
+      given-names: "Geoffrey D."
+  journal: "arXiv preprint arXiv:2605.05761"
+  year: 2026
+  url: "https://arxiv.org/abs/2605.05761"

@@ -1,0 +1,18 @@
+# Exact clone of the original development environment.
+# Reproduces Python 3.10.13 + the full pinned package set (linux-64, CUDA 12.1),
+# including torch 2.4.1+cu121 and the git-pinned MONAI build.
+#
+#   conda env create -f environment.lock.yml
+#   conda activate itrialspace
+#
+# This is the "give me exactly what worked" option. For a lighter, less pinned
+# setup use environment.yml instead. See docs/installation.md.
+name: itrialspace
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10.13
+  - pip
+  - pip:
+      - -r requirements.lock.txt
+      - -e .

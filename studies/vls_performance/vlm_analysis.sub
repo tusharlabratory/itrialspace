@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=vlm_analysis
+#SBATCH --partition=defq
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=24G
+#SBATCH --time=2:00:00
+#SBATCH --output=logs/vlm_analysis-%j.out
+#SBATCH --error=logs/vlm_analysis-%j.err
+
+# ===========================================================================
+#  VLM evaluation ANALYSIS — turn the per-model result CSVs into tables,
+#  figures, statistics, and a markdown report. CPU-only (no GPU).
+#
+#  Runs the reusable engine:  itrialspace.evaluation.vlm_eval.eval_analysis
+#  It auto-discovers whatever models/conditions/tasks are present under
+#  --results, so the SAME job analyses the full dataset or a small demo run.
+#
+#  Submit:  sbatch infra/slurm/vlm_eval/vlm_analysis.sub
+#  Tune:
+#    SPLIT=release_v1        sbatch ...   # plain-scope set (42,858 / 13,087)
+#    SPLIT=""                sbatch ...   # no split: use all available cases
+#    RESULTS=out/demo        sbatch ...   # analyse a demo output dir instead
+#    NBOOT=2000              sbatch ...   # bootstrap resamples (0 to skip)
+#    OUT=/path/to/analysis   sbatch ...   # output directory
+# ===========================================================================
+
+# ── Environment (source before any var use) ──────────────────────────────
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+set -uo pipefail
+
+cd "${PROJ_DIR}"
+mkdir -p logs
+
+RESULTS="${RESULTS:-${ITRIALSPACE_DATA_DIR}/vlm_dataset}"
+SPLIT="${SPLIT-release_v1_full}"     # default: all-4-conditions set; SPLIT="" to use all cases
+NBOOT="${NBOOT:-1000}"
+OUT="${OUT:-${RESULTS}/eval_analysis/${SPLIT:-all}}"
+
+echo "=== VLM analysis ==="
+echo "  results : ${RESULTS}"
+echo "  split   : ${SPLIT:-<all cases>}"
+echo "  out     : ${OUT}"
+echo "  n_boot  : ${NBOOT}"
+
+SPLIT_ARG=()
+[ -n "${SPLIT}" ] && SPLIT_ARG=(--split "${SPLIT}")
+
+python -m itrialspace.evaluation.vlm_eval.eval_analysis \
+    --results "${RESULTS}" \
+    "${SPLIT_ARG[@]}" \
+    --out "${OUT}" \
+    --n-boot "${NBOOT}"
+
+echo "Done. Report: ${OUT}/report.md"

@@ -1,0 +1,120 @@
+#!/bin/bash
+# ──────────────────────────────────────────────────────────────────────────────
+# iTrialSpace Mask Insertion Engine — Generic SLURM Template
+#
+# Reusable template that accepts all parameters via environment variables.
+# Set the required variables before calling sbatch:
+#
+#   export TRIAL_MODE=mode1_controlled_prevalence
+#   export MANIFEST_PATH=/scratch/.../manifest.csv
+#   export OUT_DIR=/scratch/.../inserted_masks/mode1_controlled_prevalence
+#   sbatch template_insert_masks.sub
+#
+# Optional overrides (with defaults shown):
+#   export CONFIG_PATH=config/defaults.yaml
+#   export N_JOBS=8
+#   export VERIFY_PATHS=true
+#   export DRY_RUN=false
+#   export SLURM_MEM=32G
+#   export SLURM_TIME=04:00:00
+#   export SLURM_CPUS=8
+# ──────────────────────────────────────────────────────────────────────────────
+
+#SBATCH --job-name=iTS_insert
+#SBATCH --partition=defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=04:00:00
+#SBATCH --output=logs/insert_%j.out
+#SBATCH --error=logs/insert_%j.err
+
+set -euo pipefail
+
+# ── Defaults ──────────────────────────────────────────────────────────────────
+TRIAL_MODE="${TRIAL_MODE:-unnamed}"
+MANIFEST_PATH="${MANIFEST_PATH:?ERROR: MANIFEST_PATH must be set}"
+OUT_DIR="${OUT_DIR:?ERROR: OUT_DIR must be set}"
+CONFIG_PATH="${CONFIG_PATH:-config/defaults.yaml}"
+N_JOBS="${N_JOBS:-8}"
+VERIFY_PATHS="${VERIFY_PATHS:-true}"
+DRY_RUN="${DRY_RUN:-false}"
+TRIAL_NAME="${TRIAL_NAME:-${TRIAL_MODE}}"
+SEED="${SEED:-42}"
+
+# ── Banner ────────────────────────────────────────────────────────────────────
+echo "=================================================================="
+echo " iTrialSpace Mask Insertion Engine"
+echo " Mode:       ${TRIAL_MODE}"
+echo " Job ID:     ${SLURM_JOB_ID:-local}"
+echo " Node:       $(hostname)"
+echo " Date:       $(date)"
+echo "=================================================================="
+echo ""
+echo " MANIFEST_PATH : ${MANIFEST_PATH}"
+echo " OUT_DIR        : ${OUT_DIR}"
+echo " CONFIG_PATH    : ${CONFIG_PATH}"
+echo " N_JOBS         : ${N_JOBS}"
+echo " VERIFY_PATHS   : ${VERIFY_PATHS}"
+echo " DRY_RUN        : ${DRY_RUN}"
+echo " TRIAL_NAME     : ${TRIAL_NAME}"
+echo " SEED           : ${SEED}"
+echo ""
+
+# ── Environment ──────────────────────────────────────────────────────────────
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+cd ${PROJ_DIR}
+echo "Python: $(which python3)"
+echo "Working dir: $(pwd)"
+echo ""
+
+# ── Validate inputs ─────────────────────────────────────────────────────────
+if [ ! -f "${MANIFEST_PATH}" ]; then
+    echo "FATAL: Manifest not found at ${MANIFEST_PATH}"
+    exit 1
+fi
+
+if [ ! -f "${CONFIG_PATH}" ] && [ ! -f "src/itrialspace/mask_inserter/${CONFIG_PATH}" ]; then
+    echo "WARNING: Config not found at ${CONFIG_PATH}, falling back to built-in defaults"
+    CONFIG_ARG=""
+else
+    # Resolve relative path under the inserter package if needed
+    if [ -f "src/itrialspace/mask_inserter/${CONFIG_PATH}" ]; then
+        CONFIG_PATH="src/itrialspace/mask_inserter/${CONFIG_PATH}"
+    fi
+    CONFIG_ARG="--config ${CONFIG_PATH}"
+fi
+
+# Create output directory
+mkdir -p "${OUT_DIR}"
+
+# ── Build command ────────────────────────────────────────────────────────────
+CMD="python3 -m itrialspace.mask_inserter run"
+CMD+=" --manifest ${MANIFEST_PATH}"
+CMD+=" --output-dir ${OUT_DIR}"
+CMD+=" ${CONFIG_ARG}"
+CMD+=" --trial-name ${TRIAL_NAME}"
+CMD+=" --seed ${SEED}"
+CMD+=" --n-jobs ${N_JOBS}"
+
+if [ "${DRY_RUN}" = "true" ]; then
+    CMD+=" --dry-run"
+fi
+
+echo "Command: ${CMD}"
+echo ""
+
+# ── Execute ──────────────────────────────────────────────────────────────────
+eval ${CMD}
+EXIT_CODE=$?
+
+echo ""
+echo "=================================================================="
+echo " Finished: $(date)"
+echo " Exit code: ${EXIT_CODE}"
+echo "=================================================================="
+
+exit ${EXIT_CODE}

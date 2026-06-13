@@ -1,0 +1,168 @@
+Metadata-Version: 2.4
+Name: itrialspace
+Version: 0.1.0
+Summary: iTrialSpace — Synthetic Imaging Clinical Trial Engine for lung CT AI evaluation
+Author: iTrialSpace contributors
+License: LicenseRef-TODO
+Keywords: medical-imaging,lung-ct,synthetic-data,clinical-trial,CADe,CADx,VLM
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Medical Science Apps.
+Classifier: Operating System :: POSIX :: Linux
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pandas>=1.5
+Requires-Dist: numpy>=1.23
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: imaging
+Requires-Dist: nibabel>=5.0; extra == "imaging"
+Requires-Dist: scipy>=1.10; extra == "imaging"
+Requires-Dist: SimpleITK>=2.2; extra == "imaging"
+Provides-Extra: apps
+Requires-Dist: fastapi>=0.104; extra == "apps"
+Requires-Dist: uvicorn[standard]>=0.24; extra == "apps"
+Requires-Dist: pydantic>=2.0; extra == "apps"
+Requires-Dist: streamlit>=1.28; extra == "apps"
+Requires-Dist: nibabel>=5.0; extra == "apps"
+Requires-Dist: Pillow>=10.0; extra == "apps"
+Requires-Dist: matplotlib>=3.5; extra == "apps"
+Requires-Dist: requests>=2.28; extra == "apps"
+Requires-Dist: scikit-learn>=1.2; extra == "apps"
+Requires-Dist: umap-learn>=0.5; extra == "apps"
+Requires-Dist: faiss-cpu>=1.7; extra == "apps"
+Requires-Dist: pyarrow>=10.0; extra == "apps"
+Provides-Extra: web
+Requires-Dist: itrialspace[apps]; extra == "web"
+Provides-Extra: synthesis
+Requires-Dist: monai>=1.3; extra == "synthesis"
+Requires-Dist: nibabel>=5.0; extra == "synthesis"
+Requires-Dist: scipy>=1.10; extra == "synthesis"
+Requires-Dist: matplotlib>=3.5; extra == "synthesis"
+Requires-Dist: scikit-image>=0.21; extra == "synthesis"
+Requires-Dist: fire>=0.5; extra == "synthesis"
+Requires-Dist: tqdm>=4.60; extra == "synthesis"
+Requires-Dist: einops>=0.6; extra == "synthesis"
+Provides-Extra: vlm
+Requires-Dist: transformers>=4.40; extra == "vlm"
+Requires-Dist: open_clip_torch>=2.24; extra == "vlm"
+Requires-Dist: nibabel>=5.0; extra == "vlm"
+Requires-Dist: Pillow>=10.0; extra == "vlm"
+Requires-Dist: matplotlib>=3.5; extra == "vlm"
+Requires-Dist: seaborn>=0.12; extra == "vlm"
+Provides-Extra: eval
+Requires-Dist: monai>=1.3; extra == "eval"
+Requires-Dist: nibabel>=5.0; extra == "eval"
+Requires-Dist: scipy>=1.10; extra == "eval"
+Requires-Dist: scikit-learn>=1.2; extra == "eval"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: ruff>=0.4; extra == "dev"
+Requires-Dist: black>=24.0; extra == "dev"
+Requires-Dist: pre-commit>=3.5; extra == "dev"
+Provides-Extra: all
+Requires-Dist: itrialspace[apps,dev,imaging,vlm]; extra == "all"
+Dynamic: license-file
+
+# iTrialSpace
+
+**Synthetic Imaging Clinical Trial Engine for lung CT AI evaluation.**
+
+> ⚠️ License is not yet finalized — see [`LICENSE`](LICENSE). Do not redistribute until confirmed.
+
+iTrialSpace turns medical-imaging AI evaluation from *"find more data"* into *"specify the
+data you need."* It harmonizes **13,140 nodule profiles** from **7 public lung CT datasets**,
+generates virtual clinical-trial cohorts across **13 trial modes**, inserts donor nodule masks
+into real host anatomy, synthesizes CT volumes with a ControlNet-conditioned rectified-flow
+diffusion model (**NodMAISI**), and evaluates **CADe/CADx** detectors and **vision-language
+models** under systematically controlled conditions.
+
+## Why
+
+Public lung-screening datasets are narrow (NLST = heavy smokers, LUNA16 has no malignancy
+labels, NSCLC-Radiomics = only large cancers), so AI models get tested on data that
+under-represents where they fail. iTrialSpace lets you declare a cohort by its *statistical
+properties* (prevalence, size distribution, lobe distribution, demographics) and manufactures
+anatomically grounded synthetic CTs to match — enabling controlled, one-variable-at-a-time
+experiments impossible with fixed retrospective datasets.
+
+## Architecture
+
+```
+itrialspace      →  trials        →  mask_inserter  →  synthesis     →  evaluation
+(nodule index)      (manifests)      (mask paste)      (NodMAISI CT)    (CADe/CADx/VLM)
+   │
+   ├─ nodulemap   (graph viz)
+   └─ retriever   (faceted search)
+```
+
+See [docs/architecture.md](docs/architecture.md) for the full component map.
+
+## Quickstart
+
+```bash
+# 1. Environment
+conda env create -f environment.yml && conda activate itrialspace
+
+# 2. Install (pick the extras you need — see Install matrix below)
+pip install -e ".[imaging,web]"
+
+# 3. Configure paths
+cp .env.example .env      # edit ITRIALSPACE_DATA_DIR etc.
+
+# 4. Run unit tests (no external data required)
+pytest -m "not full_volume"
+
+# 5. Build the nodule index and print stats (requires profile CSVs — see docs/data.md)
+its index stats
+```
+
+## Install matrix
+
+| Extra | Installs | For |
+|-------|----------|-----|
+| *(base)* | pandas, numpy, pyyaml | Index, query, trial planning |
+| `imaging` | nibabel, scipy, SimpleITK | Mask insertion, NIfTI handling |
+| `web` | fastapi, streamlit, faiss, umap | NoduleMap + Retriever UIs |
+| `synthesis` | monai, (torch) | NodMAISI CT synthesis* |
+| `vlm` | transformers, open_clip | VLM evaluation* |
+| `eval` | monai, scikit-learn | CADe/CADx evaluation** |
+| `dev` | pytest, ruff, black, pre-commit | Development |
+| `all` | imaging + web + vlm + dev | Everything bundled |
+
+\* torch is platform-specific — see [docs/installation.md](docs/installation.md).
+\*\* also needs **external** models/repos — see [docs/evaluation_external_dependencies.md](docs/evaluation_external_dependencies.md).
+
+## Console commands
+
+| Command | Does |
+|---------|------|
+| `its` | Umbrella CLI (index, query, info) |
+| `its-insert` | Insert nodule masks from a cohort manifest |
+| `its-trials` | Generate cohort manifests for the 13 trial modes |
+| `its-nodulemap` | Launch the NoduleMap graph-visualization server |
+| `its-retriever` | Launch the Retriever search API + UI |
+
+## Documentation
+
+- [Installation](docs/installation.md) · [Quickstart](docs/quickstart.md) · [Configuration](docs/configuration.md)
+- [Architecture](docs/architecture.md) · [Pipeline](docs/pipeline.md) · [Trial modes](docs/trial_modes.md)
+- [Data preparation](docs/data.md) · [Reproducibility](docs/reproducibility.md)
+- [SKILL.md](SKILL.md) — exhaustive machine-readable reference for AI coding assistants
+
+## Data & models
+
+This repository contains **code only**. Source CT datasets and trained model weights are
+**not** redistributed here (they carry their own licenses and are large). See
+[docs/data.md](docs/data.md) and [docs/installation.md](docs/installation.md) for how to obtain
+and lay them out.
+
+## Citation
+
+See [CITATION.cff](CITATION.cff).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). All contributions run through CI (lint + tests +
+portability gate).

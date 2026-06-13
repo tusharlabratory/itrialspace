@@ -1,0 +1,42 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M5_Counterfact
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode5_counterfactual.out
+#SBATCH --error=logs/mode5_counterfactual.err
+
+echo "=== iTrialSpace Trial Mode 5: Counterfactual Cohort ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"; itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_DIR="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode5_counterfactual"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# Same base cohort with one parameter varied across values
+# Measures the effect of a single variable on algorithm performance
+# N_CASES=500               # Cases per variant   # real run (commented for 5-case smoke test)
+N_CASES=5               # Cases per variant
+TEMPLATE="NLST"
+VARY_PARAM="malignancy_prevalence"
+VALUES="0.01,0.02,0.05,0.10,0.20"    # 5 variants
+SEED=42                   # Same seed → same base cohort structure
+
+# ── Run ────────────────────────────────────────────────────────────────────
+python3 "$RUNNER" \
+    --mode counterfactual \
+    --output-dir "$OUTPUT_DIR" \
+    --n-cases $N_CASES \
+    --template "$TEMPLATE" \
+    --vary-param "$VARY_PARAM" \
+    --values "$VALUES" \
+    --seed $SEED
+
+echo "Finished: $(date)"

@@ -1,0 +1,49 @@
+iTrialSpace — NOTICE
+====================
+
+iTrialSpace's own source code is licensed under the PolyForm Noncommercial License
+1.0.0 (see LICENSE). This NOTICE lists third-party components that are NOT covered by
+that license and remain under their own terms.
+
+--------------------------------------------------------------------------------
+1. Vendored / derived source code (in this repository)
+--------------------------------------------------------------------------------
+src/itrialspace/synthesis/scripts/**
+    Derived from MONAI / Project-MAISI (https://github.com/Project-MONAI/MONAI,
+    https://github.com/Project-MONAI/tutorials) and, in part, from HuggingFace
+    diffusers (https://github.com/huggingface/diffusers).
+    License: Apache License, Version 2.0.
+    Copyright (c) MONAI Consortium and the respective authors.
+    The per-file headers in that directory are authoritative and must be retained.
+    A copy of the Apache-2.0 license: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+2. Runtime dependencies (installed, not redistributed here)
+--------------------------------------------------------------------------------
+Each retains its own license; representative components:
+    MONAI                 — Apache-2.0
+    PyTorch / torchvision — BSD-3-Clause
+    transformers          — Apache-2.0
+    open_clip_torch       — MIT
+    NumPy, SciPy, pandas, scikit-image, nibabel, SimpleITK, matplotlib, FastAPI,
+    Streamlit, faiss, umap-learn — see each project's license.
+
+--------------------------------------------------------------------------------
+3. Model weights (NOT included in this repository)
+--------------------------------------------------------------------------------
+NodMAISI / MAISI (autoencoder, diffusion UNet, ControlNet)
+    Obtained separately (NODMAISI_MODELS_DIR); carries its own license/terms,
+    typically restricted to research / noncommercial use.
+MedGemma (google/medgemma-1.5-4b-it)
+    Gated; governed by the Health AI Developer Foundations terms of use.
+BiomedCLIP, LLaVA-Med
+    Downloaded from their sources; each under its own license.
+
+--------------------------------------------------------------------------------
+4. Source CT datasets (NOT redistributed by this repository)
+--------------------------------------------------------------------------------
+DLCS24, LUNA16, LUNA25, LUNGx, LNDb, NSCLC-Radiomics, IMDCT, and related public
+lung-CT datasets each carry their own licenses and citation requirements — several
+are restricted to noncommercial / research use. iTrialSpace operates on derived
+nodule profiles + segmentation masks and does not redistribute source CT images.
+See docs/data.md and docs/dataset_card.md for sources, licenses, and citations.

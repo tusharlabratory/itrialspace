@@ -1,0 +1,41 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M4_DemoStrat
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode4_demographic_stratification.out
+#SBATCH --error=logs/mode4_demographic_stratification.err
+
+echo "=== iTrialSpace Trial Mode 4: Demographic Stratification ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"; itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_DIR="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode4_demographic_stratification"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# Produces 4 manifests (default strata):
+#   Stratum 0: Male,   55-65
+#   Stratum 1: Male,   65-75
+#   Stratum 2: Female, 55-65
+#   Stratum 3: Female, 65-75
+# N_PER_STRATUM=200         # Cases per demographic stratum   # real run (commented for 5-case smoke test)
+N_PER_STRATUM=5         # Cases per demographic stratum
+TEMPLATE="NLST"           # Trial template for base parameters
+SEED=42
+
+# ── Run ────────────────────────────────────────────────────────────────────
+python3 "$RUNNER" \
+    --mode demographic_strat \
+    --output-dir "$OUTPUT_DIR" \
+    --n-per-stratum $N_PER_STRATUM \
+    --template "$TEMPLATE" \
+    --seed $SEED
+
+echo "Finished: $(date)"

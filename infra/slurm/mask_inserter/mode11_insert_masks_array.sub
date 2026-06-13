@@ -1,0 +1,103 @@
+#!/bin/bash
+# ──────────────────────────────────────────────────────────────────────────────
+# Mode 11: Digital Twin Isolation — Array Job (one per manifest chunk)
+#
+# When all_patients=True the isolation manifest can be large (one row per
+# nodule per patient).  Use the list_manifests tool to split into chunks,
+# then submit an array job so each chunk runs on a separate SLURM task.
+#
+# Usage:
+#   python itrialspace_mask_inserter/tools/list_manifests.py \
+#       --dir /scratch/.../manifests/mode11_digital_twin_isolation \
+#       --output manifests_mode11.txt
+#   sbatch --array=0-$(( $(wc -l < manifests_mode11.txt) - 1 )) \
+#       mode11_insert_masks_array.sub
+# ──────────────────────────────────────────────────────────────────────────────
+
+#SBATCH --job-name=ins_M11_arr
+#SBATCH --partition=defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=2-00:00:00
+#SBATCH --output=logs/insert_mode11_digital_twin_isolation_%A_%a.out
+#SBATCH --error=logs/insert_mode11_digital_twin_isolation_%A_%a.err
+
+# ── Load shared environment (PROJ_DIR, ITRIALSPACE_*, conda) — before any var use ──
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+
+set -euo pipefail
+
+BASE_DIR="${ITRIALSPACE_DATA_DIR}"
+OUTPUT_ROOT="${ITRIALSPACE_OUTPUT_DIR}/inserted_masks"
+PROJECT_DIR="${PROJ_DIR}"
+
+TRIAL_MODE="mode11_digital_twin_isolation"
+MANIFEST_LIST="${MANIFEST_LIST:-${PROJECT_DIR}/itrialspace_mask_inserter/slurm_trials/manifests_mode11.txt}"
+CONFIG_PATH="${CONFIG_PATH:-config/defaults.yaml}"
+N_JOBS="${N_JOBS:-8}"
+DRY_RUN="${DRY_RUN:-false}"
+SEED="${SEED:-42}"
+
+if [ ! -f "${MANIFEST_LIST}" ]; then
+    echo "FATAL: Manifest list not found: ${MANIFEST_LIST}"
+    exit 1
+fi
+
+TASK_ID="${SLURM_ARRAY_TASK_ID:-0}"
+MANIFEST_PATH=$(sed -n "$((TASK_ID + 1))p" "${MANIFEST_LIST}")
+
+if [ -z "${MANIFEST_PATH}" ]; then
+    echo "FATAL: No manifest at index ${TASK_ID} in ${MANIFEST_LIST}"
+    exit 1
+fi
+
+MANIFEST_BASENAME="$(basename "${MANIFEST_PATH}" .csv)"
+MANIFEST_BASENAME="$(basename "${MANIFEST_BASENAME}" .json)"
+OUT_DIR="${OUTPUT_ROOT}/${TRIAL_MODE}/${MANIFEST_BASENAME}"
+
+echo "=================================================================="
+echo " iTrialSpace Mask Insertion — Mode 11: Digital Twin Isolation (Array)"
+echo " Job ID: ${SLURM_JOB_ID:-local}  Array Task: ${TASK_ID}"
+echo " Node: $(hostname)  Date: $(date)"
+echo "=================================================================="
+echo " MANIFEST_PATH : ${MANIFEST_PATH}"
+echo " OUT_DIR        : ${OUT_DIR}"
+echo ""
+
+cd "${PROJECT_DIR}"
+
+if [ ! -f "${MANIFEST_PATH}" ]; then
+    echo "FATAL: Manifest not found: ${MANIFEST_PATH}"
+    exit 1
+fi
+mkdir -p "${OUT_DIR}"
+
+CFG_ARG=""
+if [ -f "src/itrialspace/mask_inserter/${CONFIG_PATH}" ]; then
+    CFG_ARG="--config src/itrialspace/mask_inserter/${CONFIG_PATH}"
+elif [ -f "${CONFIG_PATH}" ]; then
+    CFG_ARG="--config ${CONFIG_PATH}"
+fi
+
+EXTRA_ARGS=""
+[ "${DRY_RUN}" = "true" ] && EXTRA_ARGS="--dry-run"
+
+echo "Running: python3 -m itrialspace.mask_inserter run ..."
+echo "  manifest: ${MANIFEST_PATH}"
+echo "  output:   ${OUT_DIR}"
+
+python3 -m itrialspace.mask_inserter run \
+    --manifest "${MANIFEST_PATH}" \
+    --output-dir "${OUT_DIR}" \
+    ${CFG_ARG} \
+    --trial-name "${TRIAL_MODE}_${MANIFEST_BASENAME}" \
+    --seed ${SEED} \
+    --n-jobs ${N_JOBS} \
+    ${EXTRA_ARGS}
+EXIT_CODE=$?
+echo "Finished: $(date)  Exit: ${EXIT_CODE}"
+exit ${EXIT_CODE}

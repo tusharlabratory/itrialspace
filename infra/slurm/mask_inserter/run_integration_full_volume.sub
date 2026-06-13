@@ -1,0 +1,61 @@
+#!/bin/bash
+#SBATCH --job-name=inserter_fullvol
+#SBATCH --partition=common
+#SBATCH --mem=32G
+#SBATCH --cpus-per-task=4
+#SBATCH --time=02:00:00
+#SBATCH --output=full_volume_%j.out
+#SBATCH --error=full_volume_%j.err
+
+# ──────────────────────────────────────────────────────────────────────────
+# iTrialSpace Mask Inserter — Full-Volume Integration Tests on HPC
+#
+# Before submitting, generate a test manifest:
+#   python itrialspace_mask_inserter/tools/make_test_manifest.py \
+#       --output ${ITRIALSPACE_DATA_DIR}/test_manifest.csv
+#
+# Then submit:
+#   export ITRIALSPACE_TEST_MANIFEST=${ITRIALSPACE_DATA_DIR}/test_manifest.csv
+#   export ITRIALSPACE_TEST_BASEDIR=${ITRIALSPACE_DATA_DIR}
+#   sbatch run_integration_full_volume.sub
+# ──────────────────────────────────────────────────────────────────────────
+
+set -euo pipefail
+
+echo "=== iTrialSpace Mask Inserter: Full-Volume Integration Tests ==="
+echo "Job ID:    ${SLURM_JOB_ID:-local}"
+echo "Node:      $(hostname)"
+echo "Date:      $(date)"
+echo ""
+
+# Activate environment
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"; itrialspace_activate_conda
+
+# Navigate to project root
+cd ${PROJ_DIR}
+
+# ── Test data paths (edit these or set env vars before sbatch) ───────────
+export ITRIALSPACE_TEST_MANIFEST="${ITRIALSPACE_TEST_MANIFEST:-${ITRIALSPACE_DATA_DIR}/test_manifest.csv}"
+export ITRIALSPACE_TEST_BASEDIR="${ITRIALSPACE_TEST_BASEDIR:-${ITRIALSPACE_DATA_DIR}}"
+
+echo "Test manifest: ${ITRIALSPACE_TEST_MANIFEST}"
+echo "Base dir:      ${ITRIALSPACE_TEST_BASEDIR}"
+echo "Python:        $(which python)"
+echo ""
+
+# Verify data exists before running tests
+if [ ! -f "${ITRIALSPACE_TEST_MANIFEST}" ]; then
+    echo "ERROR: Test manifest not found at ${ITRIALSPACE_TEST_MANIFEST}"
+    echo "Generate it with: python itrialspace_mask_inserter/tools/make_test_manifest.py"
+    exit 1
+fi
+
+# Run full-volume integration tests
+python -m pytest \
+    itrialspace_mask_inserter/tests/test_full_volume.py \
+    -v --tb=long -s \
+    -m "full_volume" \
+    2>&1
+
+echo ""
+echo "=== Full-volume tests complete: $(date) ==="

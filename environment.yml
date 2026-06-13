@@ -1,0 +1,30 @@
+# Conda environment for iTrialSpace — matches the development environment versions.
+#
+#   conda env create -f environment.yml
+#   conda activate itrialspace
+#
+# IMPORTANT: install everything in ONE pip resolution (this file does). Do NOT follow
+# up with extra unpinned `pip install`s — the `>=` extras would drift to latest and
+# bump torch/transformers/monai. For an exact freeze, see requirements.lock.txt.
+#
+# Verified versions: Python 3.10, torch 2.4.1+cu121, torchvision 0.19.1+cu121,
+# transformers 4.51.3, open_clip 2.32.0, MONAI (git dev commit), numpy 1.26.4.
+# CUDA 12.1 build of torch — adjust the index URL to match your driver if needed.
+name: itrialspace
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip>=23
+  - pip:
+      - --extra-index-url https://download.pytorch.org/whl/cu121
+      # Behavior-critical pins (match the dev env exactly)
+      - numpy==1.26.4
+      - torch==2.4.1
+      - torchvision==0.19.1
+      - transformers==4.51.3
+      - open_clip_torch==2.32.0
+      - seaborn>=0.12
+      - monai @ git+https://github.com/Project-MONAI/MONAI.git@c3a317d2bcb486199f40bda0d722a41e3869712a
+      # The package with all in-repo extras (deps resolve around the pins above)
+      - -e .[imaging,apps,synthesis,vlm,dev]

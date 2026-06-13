@@ -1,0 +1,48 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M9_Screening
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode9_screening_simulation.out
+#SBATCH --error=logs/mode9_screening_simulation.err
+
+echo "=== iTrialSpace Trial Mode 9: Screening Protocol Simulation ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"; itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_DIR="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode9_screening_simulation"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# Multi-round screening protocol simulation
+# Each round has decreasing malignancy prevalence (cancers caught in
+# earlier rounds are removed from later rounds)
+#
+# With NLST baseline prevalence=0.04 and decay=0.7:
+#   Round 1: prev=0.040
+#   Round 2: prev=0.028
+#   Round 3: prev=0.020
+N_ROUNDS=3
+# N_CASES_PER_ROUND=500   # real run (commented for 5-case smoke test)
+N_CASES_PER_ROUND=5
+PREVALENCE_DECAY=0.7      # Multiplicative decay per round
+TEMPLATE="NLST"
+SEED=42
+
+# ── Run ────────────────────────────────────────────────────────────────────
+python3 "$RUNNER" \
+    --mode screening_simulation \
+    --output-dir "$OUTPUT_DIR" \
+    --n-rounds $N_ROUNDS \
+    --n-cases-per-round $N_CASES_PER_ROUND \
+    --prevalence-decay $PREVALENCE_DECAY \
+    --template "$TEMPLATE" \
+    --seed $SEED
+
+echo "Finished: $(date)"

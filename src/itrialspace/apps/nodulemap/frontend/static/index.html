@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iTrialSpace · NoduleMap</title>
+<meta name="description" content="iTrialSpace NoduleMap — donor nodule explorer & reinsertion matching (research use only).">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230f1117'/><line x1='11' y1='13' x2='21' y2='11' stroke='%234a9eff' stroke-width='1.2' opacity='0.55'/><line x1='11' y1='13' x2='19' y2='21' stroke='%234a9eff' stroke-width='1.2' opacity='0.55'/><circle cx='11' cy='13' r='3.4' fill='%234a9eff'/><circle cx='21' cy='11' r='2.6' fill='%237c3aed'/><circle cx='19' cy='21' r='3' fill='%2310b981'/></svg>">
+<style>
+/* ── Reset & Base ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f1117; --surface: #181b23; --surface2: #22262f;
+  --border: #2d3140; --text: #e4e6eb; --text2: #9ba0ad;
+  --accent: #4a9eff; --accent2: #7c3aed;
+  --green: #10b981; --red: #ef4444; --yellow: #f59e0b; --gray: #6b7280;
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  font-size: 13px; color: var(--text); background: var(--bg);
+}
+body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* ── Top app bar (branding) ───────────────────────────────────────── */
+#appbar {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 16px;
+  padding: 7px 16px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+#appbar .brand { display: flex; align-items: center; gap: 10px; }
+#appbar .brand .mark { width: 26px; height: 26px; flex: 0 0 auto; }
+#appbar .brand .names { display: flex; flex-direction: column; line-height: 1.15; }
+#appbar .brand .title { font-size: 15px; font-weight: 700; letter-spacing: .2px; }
+#appbar .brand .title .dot { color: var(--accent); margin: 0 2px; }
+#appbar .brand .title .sub { color: var(--text2); font-weight: 600; }
+#appbar .brand .org { font-size: 10px; color: var(--text2); margin-top: 1px; }
+#appbar .appbar-tagline {
+  color: var(--text2); font-size: 12px; padding-left: 16px;
+  border-left: 1px solid var(--border);
+}
+#appbar .appbar-spacer { flex: 1; }
+#appbar .appbar-right { display: flex; align-items: center; gap: 14px; }
+#appbar .version-chip {
+  font-size: 11px; color: var(--text2);
+  border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px;
+}
+#appbar .appbar-link {
+  color: var(--text2); text-decoration: none; font-size: 12px; cursor: pointer;
+}
+#appbar .appbar-link:hover { color: var(--accent); }
+@media (max-width: 960px) { #appbar .appbar-tagline, #appbar .brand .org { display: none; } }
+
+/* ── Workspace (3-column area below the app bar) ───────────────────── */
+#workspace { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+
+/* ── Footer (disclaimer) ──────────────────────────────────────────── */
+#appfoot {
+  flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 14px; font-size: 10px; color: var(--text2);
+  background: var(--surface); border-top: 1px solid var(--border);
+}
+#appfoot .disc { color: var(--yellow); opacity: .85; }
+#appfoot a { color: var(--text2); text-decoration: none; }
+#appfoot a:hover { color: var(--accent); }
+
+/* ── About dialog ─────────────────────────────────────────────────── */
+#about-overlay {
+  display: none; position: fixed; inset: 0; z-index: 500;
+  background: rgba(15,17,23,0.78); align-items: center; justify-content: center;
+}
+#about-modal {
+  width: min(640px, 92vw); max-height: 85vh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 22px 24px;
+}
+#about-modal h2 { font-size: 18px; }
+#about-modal .org { color: var(--text2); font-size: 12px; margin: 2px 0 14px; }
+#about-modal p { font-size: 13px; line-height: 1.55; margin: 8px 0; color: var(--text); }
+#about-modal code { background: var(--surface2); padding: 1px 5px; border-radius: 4px; }
+#about-modal .stat-row { display: flex; gap: 12px; margin: 14px 0; flex-wrap: wrap; }
+#about-modal .stat {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 14px;
+}
+#about-modal .stat b { font-size: 16px; color: var(--accent); display: block; }
+#about-modal .stat span { font-size: 11px; color: var(--text2); }
+#about-modal .disclaimer {
+  margin-top: 14px; padding: 10px 12px; font-size: 12px;
+  border: 1px solid var(--yellow); border-radius: 8px;
+  color: var(--yellow); background: rgba(245,158,11,0.08);
+}
+#about-modal .about-actions { margin-top: 18px; text-align: right; }
+#about-modal .close-btn {
+  background: var(--accent); color: #fff; border: none; border-radius: 7px;
+  padding: 7px 16px; font-size: 13px; cursor: pointer; font-family: inherit;
+}
+#about-modal a { color: var(--accent); }
+
+/* ── Left Sidebar (Filters) ───────────────────────────────────────── */
+#sidebar {
+  width: 260px; min-width: 260px;
+  background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow-y: auto;
+}
+#sidebar h2 { font-size: 14px; padding: 12px 14px 8px; color: var(--accent); }
+.filter-group { padding: 6px 14px; border-bottom: 1px solid var(--border); }
+.filter-group label { display: block; font-size: 11px; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.filter-group select, .filter-group input {
+  width: 100%; background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 5px 8px; font-size: 12px; outline: none;
+}
+.filter-group select:focus, .filter-group input:focus { border-color: var(--accent); }
+.filter-group select[multiple] { height: 80px; }
+.range-row { display: flex; gap: 6px; }
+.range-row input { width: 50%; }
+#filter-stats { padding: 10px 14px; font-size: 11px; color: var(--text2); }
+.btn { background: var(--accent); color: #fff; border: none; border-radius: 4px;
+  padding: 6px 12px; cursor: pointer; font-size: 12px; font-weight: 500; }
+.btn:hover { opacity: 0.9; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm { padding: 4px 8px; font-size: 11px; }
+
+/* ── Center (Map) ──────────────────────────────────────────────────── */
+#center { flex: 1; display: flex; flex-direction: column; }
+#toolbar {
+  display: flex; gap: 10px; align-items: center; padding: 8px 14px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+#toolbar label { font-size: 11px; color: var(--text2); }
+#toolbar select { background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 4px 8px; font-size: 12px; }
+#toolbar .spacer { flex: 1; }
+#toolbar .status { font-size: 11px; color: var(--text2); }
+#graph-container { flex: 1; position: relative; background: var(--bg); }
+#graph-container canvas { display: block; }
+
+/* ── Right Panel (Detail) ──────────────────────────────────────────── */
+#detail-panel {
+  width: 340px; min-width: 340px;
+  background: var(--surface); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow-y: auto;
+  transition: width 0.2s;
+}
+#detail-panel.collapsed { width: 0; min-width: 0; overflow: hidden; }
+#detail-panel h3 { font-size: 13px; padding: 12px 14px 6px; color: var(--accent); }
+#detail-content { padding: 0 14px 14px; }
+.node-info-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; }
+.node-info-grid .key { color: var(--text2); font-size: 11px; text-align: right; }
+.node-info-grid .val { font-size: 12px; word-break: break-all; }
+.label-badge { display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 10px; font-weight: 600; }
+.label-badge.malignant { background: #ef444430; color: var(--red); }
+.label-badge.benign { background: #10b98130; color: var(--green); }
+.label-badge.unlabelled { background: #6b728030; color: var(--gray); }
+#neighbor-list { margin-top: 10px; }
+#neighbor-list table { width: 100%; border-collapse: collapse; font-size: 11px; }
+#neighbor-list th { text-align: left; color: var(--text2); padding: 4px 6px;
+  border-bottom: 1px solid var(--border); font-weight: 500; }
+#neighbor-list td { padding: 4px 6px; border-bottom: 1px solid var(--border);
+  cursor: pointer; }
+#neighbor-list tr:hover td { background: var(--surface2); }
+.sim-bar { display: inline-block; height: 6px; border-radius: 3px;
+  background: var(--accent); vertical-align: middle; }
+#detail-actions { padding: 10px 14px; display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ── Loading ───────────────────────────────────────────────────────── */
+#loading-overlay {
+  position: fixed; inset: 0; background: rgba(15,17,23,0.9);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 999; flex-direction: column; gap: 12px;
+}
+#loading-overlay .spinner { width: 32px; height: 32px; border: 3px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#loading-overlay.hidden { display: none; }
+
+/* ── Tooltip ───────────────────────────────────────────────────────── */
+#tooltip {
+  position: absolute; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 10px; pointer-events: none;
+  font-size: 11px; z-index: 100; max-width: 260px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5); display: none;
+}
+#tooltip .tt-id { font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+#tooltip .tt-row { color: var(--text2); }
+</style>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div style="color:var(--text2)">Loading NoduleMap …</div>
+</div>
+
+<!-- ── Top app bar (branding) ───────────────────────────────────────── -->
+<header id="appbar">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+      <line x1="11" y1="13" x2="21" y2="11" stroke="#4a9eff" stroke-width="1.2" opacity="0.55"/>
+      <line x1="11" y1="13" x2="19" y2="21" stroke="#4a9eff" stroke-width="1.2" opacity="0.55"/>
+      <circle cx="11" cy="13" r="3.4" fill="#4a9eff"/>
+      <circle cx="21" cy="11" r="2.6" fill="#7c3aed"/>
+      <circle cx="19" cy="21" r="3" fill="#10b981"/>
+    </svg>
+    <div class="names">
+      <div class="title">iTrialSpace<span class="dot">·</span><span class="sub">NoduleMap</span></div>
+      <div class="org">Tushar Lab · Dept. of Radiology &amp; Imaging Sciences · University of Arizona</div>
+    </div>
+  </div>
+  <div class="appbar-tagline">Donor nodule explorer &amp; reinsertion matching</div>
+  <div class="appbar-spacer"></div>
+  <div class="appbar-right">
+    <span id="appbar-links"></span>
+    <span class="version-chip" id="version-chip">v0.1.0</span>
+    <a class="appbar-link" onclick="openAbout()">About</a>
+  </div>
+</header>
+
+<!-- ── Workspace (3-column area) ─────────────────────────────────────── -->
+<div id="workspace">
+
+<!-- ── Left Sidebar ─────────────────────────────────────────────────── -->
+<div id="sidebar">
+  <h2>Filters</h2>
+
+  <div class="filter-group">
+    <label>Datasets</label>
+    <select id="f-datasets" multiple></select>
+  </div>
+  <div class="filter-group">
+    <label>Label</label>
+    <select id="f-label">
+      <option value="">All</option>
+      <option value="1">Malignant</option>
+      <option value="0">Benign</option>
+      <option value="unlabelled">Unlabelled</option>
+      <option value="labelled">Labelled (any)</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Lobe</label>
+    <select id="f-lobe"><option value="">All</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Zone</label>
+    <select id="f-zone"><option value="">All</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Side</label>
+    <select id="f-side"><option value="">All</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Size Bucket</label>
+    <select id="f-size"><option value="">All</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Diameter (mm)</label>
+    <div class="range-row">
+      <input id="f-diam-min" type="number" placeholder="min" step="0.1">
+      <input id="f-diam-max" type="number" placeholder="max" step="0.1">
+    </div>
+  </div>
+  <div class="filter-group">
+    <label>Pleural Distance (mm)</label>
+    <div class="range-row">
+      <input id="f-pleu-min" type="number" placeholder="min" step="0.1">
+      <input id="f-pleu-max" type="number" placeholder="max" step="0.1">
+    </div>
+  </div>
+  <div class="filter-group">
+    <label>Airway Distance (mm)</label>
+    <div class="range-row">
+      <input id="f-airw-min" type="number" placeholder="min" step="0.1">
+      <input id="f-airw-max" type="number" placeholder="max" step="0.1">
+    </div>
+  </div>
+  <div class="filter-group" style="padding-top:10px">
+    <button class="btn" onclick="applyFilters()" style="width:100%">Apply Filters</button>
+    <button class="btn btn-outline" onclick="resetFilters()" style="width:100%;margin-top:4px">Reset</button>
+  </div>
+  <div id="filter-stats"></div>
+</div>
+
+<!-- ── Center (Toolbar + Graph) ─────────────────────────────────────── -->
+<div id="center">
+  <div id="toolbar">
+    <label>Position:
+      <select id="t-vis-model">
+        <!-- populated dynamically from /api/models -->
+      </select>
+    </label>
+    <label>Search model:
+      <select id="t-search-model">
+        <!-- populated dynamically from /api/models -->
+      </select>
+    </label>
+    <label>K:
+      <select id="t-k">
+        <option value="3">3</option>
+        <option value="5" selected>5</option>
+        <option value="10">10</option>
+        <option value="25">25</option>
+      </select>
+    </label>
+    <label>Mode:
+      <select id="t-mode">
+        <option value="closest" selected>Most Similar</option>
+        <option value="farthest">Least Similar</option>
+      </select>
+    </label>
+    <label>Color by:
+      <select id="t-color">
+        <option value="dataset" selected>Dataset</option>
+        <option value="label_text">Label</option>
+        <option value="reinsertion_lobe">Lobe</option>
+        <option value="size_bucket">Size Bucket</option>
+        <option value="reinsertion_lung_zone">Zone</option>
+        <option value="reinsertion_lung_side">Side</option>
+      </select>
+    </label>
+    <label>Scope:
+      <select id="t-scope">
+        <option value="cross_dataset" selected>Cross-dataset</option>
+        <option value="within_dataset">Within dataset</option>
+      </select>
+    </label>
+    <div class="spacer"></div>
+    <div class="status" id="status-text">Loading…</div>
+  </div>
+  <div id="graph-container">
+    <div id="tooltip">
+      <div class="tt-id"></div>
+      <div class="tt-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Right Panel (Detail) ─────────────────────────────────────────── -->
+<div id="detail-panel" class="collapsed">
+  <h3>Node Detail</h3>
+  <div id="detail-content">
+    <p style="color:var(--text2);padding:20px 0">Click a node on the map to see details.</p>
+  </div>
+  <div id="neighbor-list"></div>
+  <div id="detail-actions"></div>
+</div>
+
+</div><!-- /#workspace -->
+
+<!-- ── Footer (disclaimer) ──────────────────────────────────────────── -->
+<footer id="appfoot">
+  <span class="disc">⚠ For research use only — not for clinical use.</span>
+  <a href="https://github.com/tusharlabratory/itrialspace" target="_blank" rel="noopener">GitHub</a>
+</footer>
+
+<!-- ── About dialog ─────────────────────────────────────────────────── -->
+<div id="about-overlay" onclick="if(event.target===this)closeAbout()">
+  <div id="about-modal">
+    <h2>iTrialSpace · NoduleMap</h2>
+    <div class="org">Tushar Lab · Dept. of Radiology &amp; Imaging Sciences · University of Arizona</div>
+    <p>An interactive explorer for the iTrialSpace <b>donor nodule library</b>. Each point is a
+       lung nodule placed by a 2-D embedding of its anatomy-aware reinsertion features; click a
+       node to see its CT thumbnail, full metadata, and the best-matching donor nodules for
+       <b>reinsertion</b>.</p>
+    <div class="stat-row">
+      <div class="stat"><b id="about-nodes">13,140</b><span>nodules</span></div>
+      <div class="stat"><b id="about-datasets">7</b><span>datasets</span></div>
+      <div class="stat"><b>L1</b><span>weighted donor metric</span></div>
+    </div>
+    <p><b>Similarity:</b> donor ranking uses the clinical <code>ReinsertionMatcher</code> metric
+       (lobe + craniocaudal position + pleural distance + diameter) on the full feature space —
+       the 2-D map is for layout only.</p>
+    <p><b>Repository:</b>
+       <a href="https://github.com/tusharlabratory/itrialspace" target="_blank" rel="noopener">github.com/tusharlabratory/itrialspace</a></p>
+    <p><b>Citation:</b> see <code>CITATION.cff</code> in the iTrialSpace repository.
+       <span id="about-license"></span></p>
+    <div class="disclaimer">⚠ <b>Research use only.</b> NoduleMap and the synthetic data it
+       explores are for research and method development. <b>Not for clinical use</b> and not a
+       medical device.</div>
+    <div class="about-actions">
+      <button class="close-btn" onclick="closeAbout()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Branding script ──────────────────────────────────────────────── -->
+<script>
+  // Configure external links here; empty values are hidden (no dead links).
+  var BRAND = {
+    version: "0.1.0",
+    links: { GitHub: "https://github.com/tusharlabratory/itrialspace", Docs: "", Paper: "" },
+  };
+  (function () {
+    var vc = document.getElementById("version-chip");
+    if (vc) vc.textContent = "v" + BRAND.version;
+    var el = document.getElementById("appbar-links");
+    if (el) {
+      var h = "";
+      Object.keys(BRAND.links).forEach(function (k) {
+        if (BRAND.links[k]) {
+          h += '<a class="appbar-link" href="' + BRAND.links[k] +
+               '" target="_blank" rel="noopener">' + k + "</a>";
+        }
+      });
+      el.innerHTML = h;
+    }
+  })();
+  function openAbout() { document.getElementById("about-overlay").style.display = "flex"; }
+  function closeAbout() { document.getElementById("about-overlay").style.display = "none"; }
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeAbout(); });
+</script>
+
+<!-- ── Scripts ──────────────────────────────────────────────────────── -->
+<!-- sigma.js v2 + graphology from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/graphology/0.25.4/graphology.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sigma.js/2.4.0/sigma.min.js"></script>
+<script>
+// ── NoduleMap Frontend v0.2.1 ─────────────────────────────────────────
+const NM_VERSION = '0.2.1';
+const API_BASE   = window.location.origin;
+
+// Debug flag: set via ?debug=1 in URL, or NM_DEBUG=true in console
+const _urlDebug = new URLSearchParams(window.location.search).get('debug') === '1';
+let NM_DEBUG    = _urlDebug;
+
+// Expose internal state so the user can inspect in browser console:
+//   window.NM.state, window.NM.DEBUG(), etc.
+window.NM = { VERSION: NM_VERSION, DEBUG: () => NM_DEBUG, state: {} };
+
+function _log(...a)  { if (NM_DEBUG) console.log('[NM]', ...a); }
+function _warn(...a) { console.warn('[NM]', ...a); }
+function _err(...a)  { console.error('[NM]', ...a); }
+
+// ── Color palettes ────────────────────────────────────────────────────
+const PALETTES = {
+  dataset: {
+    DLCS24:'#4a9eff', LUNA25:'#f97316', LUNA16:'#10b981', LUNGx:'#ef4444',
+    LNDbv4:'#a855f7', NSCLCR:'#ec4899', IMDCT:'#06b6d4',
+  },
+  label_text: {
+    malignant:'#ef4444', benign:'#10b981', unlabelled:'#6b7280',
+  },
+  reinsertion_lobe: {
+    left_lung_lower_lobe:'#4a9eff', left_lung_upper_lobe:'#10b981',
+    right_lung_lower_lobe:'#f97316', right_lung_middle_lobe:'#a855f7',
+    right_lung_upper_lobe:'#ec4899',
+  },
+  size_bucket: {
+    '<5mm':'#10b981', '5-10mm':'#4a9eff', '10-15mm':'#f59e0b',
+    '15-20mm':'#f97316', '20-30mm':'#ef4444', '>30mm':'#dc2626',
+  },
+  reinsertion_lung_zone: {
+    upper:'#4a9eff', middle:'#10b981', lower:'#f97316',
+  },
+  reinsertion_lung_side: {
+    left:'#4a9eff', right:'#f97316',
+  },
+};
+const DEFAULT_COLOR = '#555';
+function getColor(colorBy, value) {
+  return (PALETTES[colorBy] || {})[value] || DEFAULT_COLOR;
+}
+const AUTO_COLORS = ['#4a9eff','#f97316','#10b981','#ef4444','#a855f7',
+  '#ec4899','#facc15','#06b6d4','#8b5cf6','#14b8a6','#f43f5e','#84cc16'];
+function autoColor(value, idx) { return AUTO_COLORS[idx % AUTO_COLORS.length]; }
+
+// ── State ─────────────────────────────────────────────────────────────
+let graph        = null;
+let renderer     = null;
+let selectedNode = null;
+let graphData    = null;
+let _lastFetchId = 0;   // stale-response guard
+let _modelHealth = {};   // model_name -> boolean
+
+// ── DOM helpers ───────────────────────────────────────────────────────
+function $(sel)  { return document.querySelector(sel); }
+function $$(sel) { return document.querySelectorAll(sel); }
+function showLoading() { $('#loading-overlay').classList.remove('hidden'); }
+function hideLoading()  { $('#loading-overlay').classList.add('hidden'); }
+
+// ── Error banner ──────────────────────────────────────────────────────
+function showError(msg, durationMs) {
+  if (durationMs === undefined) durationMs = 8000;
+  _err(msg);
+  let b = $('#nm-error-banner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'nm-error-banner';
+    b.style.cssText =
+      'position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:200;' +
+      'background:#ef444420;border:1px solid var(--red);color:var(--red);' +
+      'padding:6px 14px;border-radius:6px;font-size:12px;max-width:90%;' +
+      'cursor:pointer;word-break:break-word;';
+    b.title = 'Click to dismiss';
+    b.onclick = function() { b.style.display = 'none'; };
+    $('#graph-container').appendChild(b);
+  }
+  b.textContent = msg;
+  b.style.display = 'block';
+  if (durationMs > 0) {
+    setTimeout(function() { if (b) b.style.display = 'none'; }, durationMs);
+  }
+}
+
+// ── Settings persistence (localStorage) ──────────────────────────────
+const _SETTINGS_KEY = 'nm_settings';
+const _SETTING_IDS  = ['t-vis-model','t-search-model','t-k','t-mode','t-color','t-scope'];
+
+function saveSettings() {
+  var s = {};
+  _SETTING_IDS.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) s[id] = el.value;
+  });
+  try { localStorage.setItem(_SETTINGS_KEY, JSON.stringify(s)); } catch(e) {}
+  _log('saveSettings:', JSON.stringify(s));
+}
+
+function restoreSettings() {
+  try {
+    var raw = localStorage.getItem(_SETTINGS_KEY);
+    if (!raw) return;
+    var s = JSON.parse(raw);
+    _log('restoreSettings:', JSON.stringify(s));
+    _SETTING_IDS.forEach(function(id) {
+      if (!s[id]) return;
+      var el = document.getElementById(id);
+      if (!el) return;
+      // Check the saved value actually exists as an option
+      var opts = Array.from(el.options).map(function(o) { return o.value; });
+      if (opts.indexOf(s[id]) >= 0) {
+        el.value = s[id];
+        _log('  restored ' + id + ' = ' + s[id]);
+      } else {
+        _log('  skipped ' + id + ' (saved=' + s[id] + ' not in options)');
+      }
+    });
+  } catch(e) { _warn('restoreSettings error:', e); }
+}
+
+// ── Safe dropdown getters ─────────────────────────────────────────────
+function getVisModel()    { var v = ($('#t-vis-model')    || {}).value; return v || 'UMAP_2D'; }
+function getSearchModel() { var v = ($('#t-search-model') || {}).value; return v || 'UMAP_2D'; }
+function getK()           { return parseInt(($('#t-k') || {}).value) || 5; }
+function getScope()       { return ($('#t-scope') || {}).value || 'cross_dataset'; }
+
+// ── Filter values → object ────────────────────────────────────────────
+function collectFilters() {
+  var f = {};
+  var ds = Array.from($('#f-datasets').selectedOptions).map(function(o) { return o.value; });
+  if (ds.length) f.datasets = ds;
+  if ($('#f-label').value)  f.label = $('#f-label').value;
+  if ($('#f-lobe').value)   f.lobe = $('#f-lobe').value;
+  if ($('#f-zone').value)   f.zone = $('#f-zone').value;
+  if ($('#f-side').value)   f.side = $('#f-side').value;
+  if ($('#f-size').value)   f.size_bucket = $('#f-size').value;
+  if ($('#f-diam-min').value) f.diameter_min = parseFloat($('#f-diam-min').value);
+  if ($('#f-diam-max').value) f.diameter_max = parseFloat($('#f-diam-max').value);
+  if ($('#f-pleu-min').value) f.pleural_min = parseFloat($('#f-pleu-min').value);
+  if ($('#f-pleu-max').value) f.pleural_max = parseFloat($('#f-pleu-max').value);
+  if ($('#f-airw-min').value) f.airway_min = parseFloat($('#f-airw-min').value);
+  if ($('#f-airw-max').value) f.airway_max = parseFloat($('#f-airw-max').value);
+  return Object.keys(f).length ? f : null;
+}
+
+// ── Fetch graph data ──────────────────────────────────────────────────
+async function fetchGraph() {
+  var fetchId = ++_lastFetchId;
+  showLoading();
+
+  var visModel    = getVisModel();
+  var searchModel = getSearchModel();
+  var k           = getK();
+
+  var body = {
+    vis_model:    visModel,
+    search_model: searchModel,
+    feature_set:  'reinsertion_core',
+    k:            k,
+    mode:         ($('#t-mode') || {}).value || 'closest',
+    scope:        getScope(),
+    color_by:     ($('#t-color') || {}).value || 'dataset',
+    filters:      collectFilters(),
+  };
+
+  _log('fetchGraph:', JSON.stringify({vis: visModel, search: searchModel, k: k}));
+  window.NM.state.lastFetchBody = body;
+
+  try {
+    var resp = await fetch(API_BASE + '/api/graph', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (fetchId !== _lastFetchId) { _log('fetchGraph: stale, ignoring'); return; }
+    if (!resp.ok) {
+      var errText = await resp.text();
+      throw new Error('Graph API ' + resp.status + ': ' + errText.slice(0, 200));
+    }
+    graphData = await resp.json();
+    window.NM.state.graphData = {
+      n_nodes: (graphData.nodes || []).length,
+      n_edges: (graphData.edges || []).length,
+      stats: graphData.stats,
+    };
+    _log('fetchGraph OK:', graphData.stats);
+    renderGraph();
+    updateStatus();
+
+    // Restore previously-selected node (re-highlight + re-fetch detail)
+    if (selectedNode && graph && graph.hasNode(selectedNode)) {
+      _log('fetchGraph: restoring selection for', selectedNode);
+      selectNode(selectedNode);
+    } else if (selectedNode) {
+      _log('fetchGraph: selected node', selectedNode, 'not in new graph, clearing');
+      deselectNode();
+    }
+  } catch (e) {
+    _err('fetchGraph error:', e);
+    showError('Graph load failed (vis=' + visModel + ' search=' + searchModel + '): ' + e.message);
+    $('#status-text').textContent = 'Error: ' + e.message;
+  } finally {
+    if (fetchId === _lastFetchId) hideLoading();
+  }
+}
+
+// ── Render graph with sigma.js ────────────────────────────────────────
+function renderGraph() {
+  if (!graphData || !graphData.nodes || graphData.nodes.length === 0) {
+    _warn('renderGraph: no graph data');
+    $('#status-text').textContent = 'No nodes to display';
+    return;
+  }
+  var colorBy = ($('#t-color') || {}).value || 'dataset';
+
+  // Collect unique color values for auto-coloring
+  var uniqueVals = new Set();
+  graphData.nodes.forEach(function(n) { uniqueVals.add(n.color_value); });
+  var valArr = Array.from(uniqueVals).sort();
+  var valColorMap = {};
+  valArr.forEach(function(v, i) {
+    valColorMap[v] = getColor(colorBy, v) !== DEFAULT_COLOR
+      ? getColor(colorBy, v) : autoColor(v, i);
+  });
+
+  // Build graphology graph
+  try {
+    if (renderer) { renderer.kill(); renderer = null; }
+    graph = new graphology.Graph();
+
+    var posErrors = 0;
+    graphData.nodes.forEach(function(n) {
+      var x = Number(n.x), y = Number(n.y);
+      if (!isFinite(x) || !isFinite(y)) { posErrors++; return; }
+      graph.addNode(n.id, {
+        x: x, y: y,
+        size: 2.5,
+        color: valColorMap[n.color_value] || DEFAULT_COLOR,
+        label: n.id,
+        _data: n,
+      });
+    });
+    if (posErrors > 0) _warn('renderGraph: ' + posErrors + ' nodes skipped (bad positions)');
+
+    var edgeCount = 0;
+    (graphData.edges || []).forEach(function(e) {
+      if (graph.hasNode(e.source) && graph.hasNode(e.target)) {
+        try {
+          graph.addEdge(e.source, e.target, {
+            size: 0.3, color: '#ffffff15', _sim: e.similarity,
+          });
+          edgeCount++;
+        } catch (err) {} // ignore duplicate edges
+      }
+    });
+
+    _log('renderGraph: ' + graph.order + ' nodes, ' + edgeCount + ' edges' +
+         (posErrors ? ', ' + posErrors + ' skipped' : ''));
+
+    var container = $('#graph-container');
+    renderer = new Sigma(graph, container, {
+      renderLabels: false,
+      renderEdgeLabels: false,
+      defaultNodeColor: DEFAULT_COLOR,
+      defaultEdgeColor: '#ffffff10',
+      minCameraRatio: 0.02,
+      maxCameraRatio: 20,
+      labelRenderedSizeThreshold: 8,
+      labelFont: 'Inter, sans-serif',
+      labelColor: { color: '#e4e6eb' },
+      nodeProgramClasses: {},
+      enableEdgeEvents: false,
+    });
+  } catch (err) {
+    _err('renderGraph FATAL:', err);
+    showError('Render error: ' + err.message, 0);
+    $('#status-text').textContent = 'Render error: ' + err.message;
+    return;
+  }
+
+  // ── Interactions ──────────────────────────────────────────────────
+  var tooltip = $('#tooltip');
+
+  renderer.on('enterNode', function(evt) {
+    var attrs = graph.getNodeAttributes(evt.node);
+    var data = attrs ? attrs._data : null;
+    if (!data) return;
+    tooltip.querySelector('.tt-id').textContent = data.id || evt.node;
+    tooltip.querySelector('.tt-body').innerHTML =
+      '<div class="tt-row">' + (data.dataset || '?') + ' &middot; ' + (data.label_text || '?') + '</div>' +
+      '<div class="tt-row">&oslash; ' + (data.reinsertion_nodule_diam_mm || 0).toFixed(1) + 'mm &middot; ' + (data.reinsertion_lobe || '') + '</div>';
+    tooltip.style.display = 'block';
+  });
+  renderer.on('leaveNode', function() { tooltip.style.display = 'none'; });
+  renderer.getMouseCaptor().on('mousemovebody', function(e) {
+    tooltip.style.left = e.x + 12 + 'px';
+    tooltip.style.top  = e.y + 12 + 'px';
+  });
+
+  // Click -> select node
+  renderer.on('clickNode', function(evt) {
+    var nodeKey = evt.node;
+    _log('clickNode event: key=' + nodeKey + ' type=' + typeof nodeKey);
+    if (!nodeKey || typeof nodeKey !== 'string') {
+      _warn('clickNode: unexpected key', nodeKey);
+      return;
+    }
+    selectNode(nodeKey);
+  });
+
+  renderer.on('clickStage', function() { deselectNode(); });
+
+  _log('renderGraph: sigma ready, click handler attached');
+}
+
+// ── Node selection ────────────────────────────────────────────────────
+async function selectNode(nodeId) {
+  if (!nodeId) { _warn('selectNode: empty nodeId'); return; }
+
+  selectedNode = nodeId;
+  var panel = $('#detail-panel');
+  panel.classList.remove('collapsed');
+
+  // Highlight selected node
+  if (graph && renderer) {
+    graph.forEachNode(function(n) {
+      graph.setNodeAttribute(n, 'size', n === nodeId ? 6 : 2.5);
+    });
+    renderer.refresh();
+  }
+
+  // Capture model state at click time (not lazily later)
+  var visModel    = getVisModel();
+  var searchModel = getSearchModel();
+  var k           = getK();
+  var scope       = getScope();
+  var detailQs    = 'model=' + encodeURIComponent(visModel) + '&feature_set=reinsertion_core';
+  var debugFlag   = NM_DEBUG ? '&debug=1' : '';
+  var searchQs    = 'model=' + encodeURIComponent(searchModel) + '&feature_set=reinsertion_core' + debugFlag;
+
+  _log('selectNode: ' + nodeId + '  vis=' + visModel + '  search=' + searchModel + '  k=' + k);
+  window.NM.state.lastSelect = { nodeId: nodeId, visModel: visModel, searchModel: searchModel, k: k, scope: scope };
+
+  // Show immediate feedback
+  $('#detail-content').innerHTML =
+    '<p style="color:var(--text2);padding:10px">Loading <code>' + nodeId + '</code>&hellip;</p>' +
+    '<p style="color:var(--text2);font-size:10px;padding:0 10px">vis=' + visModel + ' search=' + searchModel + '</p>';
+  $('#neighbor-list').innerHTML = '';
+
+  try {
+    var detailUrl = API_BASE + '/api/node/' + encodeURIComponent(nodeId) + '?' + detailQs;
+    var nbUrl     = API_BASE + '/api/node/' + encodeURIComponent(nodeId) + '/neighbors?' + searchQs + '&k=' + k + '&scope=' + scope;
+
+    _log('  detail  URL:', detailUrl);
+    _log('  neighbor URL:', nbUrl);
+
+    var responses = await Promise.all([
+      fetch(detailUrl),
+      fetch(nbUrl),
+    ]);
+    var nodeResp = responses[0];
+    var nbResp   = responses[1];
+
+    _log('  detail: ' + nodeResp.status + '  neighbors: ' + nbResp.status);
+
+    if (nodeId !== selectedNode) { _log('  aborted: user clicked elsewhere'); return; }
+
+    if (!nodeResp.ok) {
+      var errText = await nodeResp.text();
+      throw new Error('Detail ' + nodeResp.status + ': ' + errText.slice(0, 200));
+    }
+
+    var nodeData = await nodeResp.json();
+    var neighbors = [];
+    var nbDebug = null;
+    if (nbResp.ok) {
+      var nbData = await nbResp.json();
+      neighbors = nbData.neighbors || [];
+      nbDebug = nbData._debug || null;
+      _log('  neighbors:', neighbors.length,
+           nbDebug ? '(dim=' + nbDebug.embedding_dim + ' ms=' + nbDebug.elapsed_ms + ')' : '');
+    } else {
+      var nbErr = await nbResp.text();
+      _warn('  Neighbor query failed (' + nbResp.status + '): ' + nbErr.slice(0, 200));
+      showError('Neighbor search failed: ' + nbResp.status);
+    }
+
+    if (nodeId !== selectedNode) return;
+    renderDetail(nodeData, neighbors, searchModel, nbDebug);
+    loadThumbnail(nodeId, detailQs);
+
+  } catch (e) {
+    _err('selectNode error:', e);
+    if (nodeId === selectedNode) {
+      $('#detail-content').innerHTML =
+        '<p style="color:var(--red);padding:10px">Error: ' + e.message + '</p>' +
+        '<p style="color:var(--text2);font-size:10px;padding:0 10px">' +
+        'nodeId=' + nodeId + ' vis=' + visModel + ' search=' + searchModel + '</p>';
+    }
+  }
+}
+
+// ── Thumbnail loader ──────────────────────────────────────────────────
+async function loadThumbnail(nodeId, qs) {
+  var thumbEl  = $('#detail-thumbnail');
+  var thumbMsg = $('#detail-thumb-msg');
+  if (!thumbEl || !thumbMsg) return;
+
+  thumbEl.src = '';
+  thumbEl.style.display = 'none';
+  thumbMsg.textContent = 'Loading slice...';
+  thumbMsg.style.display = 'block';
+
+  try {
+    var resp = await fetch(API_BASE + '/api/node/' + encodeURIComponent(nodeId) + '/axial_thumbnail?' + qs);
+    if (nodeId !== selectedNode) return;
+    if (resp.ok) {
+      var blob = await resp.blob();
+      thumbEl.src = URL.createObjectURL(blob);
+      thumbEl.style.display = 'block';
+      thumbMsg.style.display = 'none';
+    } else {
+      thumbMsg.textContent = 'Thumbnail unavailable (' + resp.status + ')';
+      _warn('thumbnail failed:', resp.status);
+    }
+  } catch (e) {
+    if (nodeId === selectedNode) {
+      thumbMsg.textContent = 'Thumbnail unavailable';
+    }
+  }
+}
+
+// ── Deselect ──────────────────────────────────────────────────────────
+function deselectNode() {
+  selectedNode = null;
+  $('#detail-panel').classList.add('collapsed');
+  if (graph && renderer) {
+    graph.forEachNode(function(n) { graph.setNodeAttribute(n, 'size', 2.5); });
+    renderer.refresh();
+  }
+}
+
+// ── Render detail panel ───────────────────────────────────────────────
+function renderDetail(node, neighbors, searchModelName, debugInfo) {
+  var dc = $('#detail-content');
+  var labelClass = (node.label_text || 'unlabelled').toLowerCase();
+
+  function fv(val, suffix) {
+    suffix = suffix || '';
+    if (val === null || val === undefined || val === 'nan' || val === '') return '--';
+    if (typeof val === 'number') { return isNaN(val) ? '--' : val.toFixed(1) + suffix; }
+    return String(val) + suffix;
+  }
+  function fs(val) {
+    if (val === null || val === undefined || val === 'nan' || val === '') return '--';
+    return String(val);
+  }
+
+  var demo = node.demographics || {};
+  var demoAge   = demo.patient_age    || 'NA';
+  var demoSex   = demo.patient_sex    || 'NA';
+  var demoSmoke = demo.smoking_status || 'NA';
+  var demoPkyr  = demo.pack_years     || 'NA';
+
+  dc.innerHTML =
+    '<div style="margin-bottom:10px">' +
+      '<div class="node-info-grid">' +
+        '<span class="key">ID</span><span class="val" style="color:var(--accent)">' + fs(node.node_id) + '</span>' +
+        '<span class="key">Annotation</span><span class="val">' + fs(node.annotation_id) + '</span>' +
+        '<span class="key">Dataset</span><span class="val" style="font-weight:600">' + fs(node.dataset) + '</span>' +
+        '<span class="key">Patient</span><span class="val">' + fs(node.patient_id) + '</span>' +
+        '<span class="key">CT</span><span class="val" style="font-size:10px;word-break:break-all">' + fs(node.ct_path) + '</span>' +
+        '<span class="key">Label</span><span class="val"><span class="label-badge ' + labelClass + '">' + (node.label_text || 'unlabelled') + '</span></span>' +
+        '<span class="key">Label Source</span><span class="val">' + fs(node.label_source) + '</span>' +
+        '<span class="key">Pop. Type</span><span class="val">' + fs(node.population_type) + '</span>' +
+      '</div>' +
+    '</div>' +
+    '<h3 style="font-size:12px;color:var(--accent);margin:8px 0 4px">Reinsertion Properties</h3>' +
+    '<div class="node-info-grid">' +
+      '<span class="key">Diameter</span><span class="val">' + fv(node.reinsertion_nodule_diam_mm, ' mm') + '</span>' +
+      '<span class="key">Pleural Dist</span><span class="val">' + fv(node.reinsertion_pleural_dist_mm, ' mm') + '</span>' +
+      '<span class="key">Airway Dist</span><span class="val">' + fv(node.reinsertion_airway_dist_mm, ' mm') + '</span>' +
+      '<span class="key">Lobe</span><span class="val">' + fs(node.reinsertion_lobe) + '</span>' +
+      '<span class="key">Zone</span><span class="val">' + fs(node.reinsertion_lung_zone) + '</span>' +
+      '<span class="key">Side</span><span class="val">' + fs(node.reinsertion_lung_side) + '</span>' +
+      '<span class="key">Lobe CC%</span><span class="val">' + fv(node.reinsertion_lobe_cc_pct, '%') + '</span>' +
+      '<span class="key">Lobe ML%</span><span class="val">' + fv(node.reinsertion_lobe_ml_pct, '%') + '</span>' +
+      '<span class="key">Lobe AP%</span><span class="val">' + fv(node.reinsertion_lobe_ap_pct, '%') + '</span>' +
+      '<span class="key">Size Bucket</span><span class="val">' + fs(node.size_bucket) + '</span>' +
+    '</div>' +
+    '<h3 style="font-size:12px;color:var(--accent);margin:8px 0 4px">Patient</h3>' +
+    '<div class="node-info-grid">' +
+      '<span class="key">Age</span><span class="val">' + demoAge + '</span>' +
+      '<span class="key">Sex</span><span class="val">' + demoSex + '</span>' +
+      '<span class="key">Smoking</span><span class="val">' + demoSmoke + '</span>' +
+      '<span class="key">Pack-years</span><span class="val">' + demoPkyr + '</span>' +
+    '</div>' +
+    '<h3 style="font-size:12px;color:var(--accent);margin:8px 0 4px">Axial Slice</h3>' +
+    '<div style="text-align:center;min-height:60px">' +
+      '<img id="detail-thumbnail" style="display:none;max-width:100%;border-radius:4px;border:1px solid var(--border)" alt="Axial slice">' +
+      '<div id="detail-thumb-msg" style="color:var(--text2);font-size:11px;padding:10px">Loading slice...</div>' +
+    '</div>';
+
+  // Neighbor list
+  var nl = $('#neighbor-list');
+  var searchModelLabel = _MODEL_LABELS[searchModelName] || searchModelName || 'UMAP 2D';
+  var debugNote = '';
+  if (debugInfo) {
+    debugNote = ' <span style="font-size:9px;color:var(--text2)">[dim=' + debugInfo.embedding_dim + ' ' + debugInfo.elapsed_ms + 'ms]</span>';
+  }
+
+  if (!neighbors.length) {
+    nl.innerHTML = '<p style="color:var(--text2);padding:10px">No neighbors found.</p>';
+  } else {
+    var html = '<h3>Top-K Neighbors <span style="font-size:10px;color:var(--text2);font-weight:400">(' + searchModelLabel + ')</span>' + debugNote + '</h3>' +
+      '<table><tr><th>#</th><th>ID</th><th>Sim</th><th>&oslash;mm</th><th>Lobe</th><th>Label</th></tr>';
+    neighbors.forEach(function(nb) {
+      var simPct = (nb.similarity * 100).toFixed(0);
+      var barW   = Math.round(nb.similarity * 60);
+      var lblCls = (nb.label_text || 'unlabelled').toLowerCase();
+      html += '<tr data-nodeid="' + nb.node_id + '" class="nb-row">' +
+        '<td>' + nb.rank + '</td>' +
+        '<td style="color:var(--accent);font-size:10px">' + nb.node_id + '</td>' +
+        '<td><span class="sim-bar" style="width:' + barW + 'px"></span> ' + simPct + '%</td>' +
+        '<td>' + (nb.reinsertion_nodule_diam_mm || 0).toFixed(1) + '</td>' +
+        '<td style="font-size:10px">' + (nb.reinsertion_lobe || '').replace('_lung_', '_').replace('_lobe', '') + '</td>' +
+        '<td><span class="label-badge ' + lblCls + '">' + (nb.label_text || '?') + '</span></td>' +
+        '</tr>';
+    });
+    html += '</table>';
+    nl.innerHTML = html;
+
+    // Attach click handlers via delegation (avoids inline onclick quoting issues)
+    nl.querySelectorAll('.nb-row').forEach(function(row) {
+      row.addEventListener('click', function() {
+        var nid = row.getAttribute('data-nodeid');
+        if (nid) selectNode(nid);
+      });
+    });
+
+    // Highlight neighbors on graph
+    if (graph && renderer) {
+      var nbIds = new Set(neighbors.map(function(n) { return n.node_id; }));
+      nbIds.add(selectedNode);
+      graph.forEachNode(function(n) {
+        if (n === selectedNode)      graph.setNodeAttribute(n, 'size', 6);
+        else if (nbIds.has(n))       graph.setNodeAttribute(n, 'size', 4);
+        else                         graph.setNodeAttribute(n, 'size', 2.5);
+      });
+      renderer.refresh();
+    }
+  }
+
+  // Action buttons
+  var da = $('#detail-actions');
+  da.innerHTML =
+    '<button class="btn btn-sm" onclick="exportNeighbors(\'csv\')">Export CSV</button>' +
+    '<button class="btn btn-sm" onclick="exportNeighbors(\'json\')">Export JSON</button>' +
+    '<button class="btn btn-sm btn-outline" onclick="exportNeighbors(\'donors\')">Export Donors</button>';
+}
+
+// ── Export ─────────────────────────────────────────────────────────────
+async function exportNeighbors(fmt) {
+  if (!selectedNode) return;
+  var body = {
+    node_id: selectedNode,
+    model: getSearchModel(),
+    feature_set: 'reinsertion_core',
+    k: getK(),
+    scope: getScope(),
+    format: fmt,
+  };
+  try {
+    var resp = await fetch(API_BASE + '/api/export', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    var result = await resp.json();
+    alert('Exported to: ' + result.path);
+  } catch (e) {
+    alert('Export error: ' + e.message);
+  }
+}
+
+// ── Filter management ─────────────────────────────────────────────────
+async function loadFilterOptions() {
+  try {
+    var resp = await fetch(API_BASE + '/api/filters');
+    if (!resp.ok) throw new Error('Filters ' + resp.status);
+    var data = await resp.json();
+
+    var dsSel = $('#f-datasets');
+    dsSel.innerHTML = '';
+    (data.datasets || []).forEach(function(d) {
+      var opt = document.createElement('option');
+      opt.value = d; opt.textContent = d;
+      dsSel.appendChild(opt);
+    });
+
+    (data.lobes || []).forEach(function(v) {
+      var opt = document.createElement('option');
+      opt.value = v; opt.textContent = v.replace(/_/g, ' ');
+      $('#f-lobe').appendChild(opt);
+    });
+
+    (data.zones || []).forEach(function(v) {
+      var opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      $('#f-zone').appendChild(opt);
+    });
+
+    (data.sides || []).forEach(function(v) {
+      var opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      $('#f-side').appendChild(opt);
+    });
+
+    (data.size_buckets || []).forEach(function(v) {
+      var opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      $('#f-size').appendChild(opt);
+    });
+
+    if (data.diameter_range) {
+      $('#f-diam-min').placeholder = 'min (' + data.diameter_range.min.toFixed(1) + ')';
+      $('#f-diam-max').placeholder = 'max (' + data.diameter_range.max.toFixed(1) + ')';
+    }
+  } catch (e) {
+    _err('loadFilterOptions error:', e);
+  }
+}
+
+function applyFilters() { fetchGraph(); }
+function resetFilters() {
+  $$('#sidebar select').forEach(function(s) { s.selectedIndex = -1; if (!s.multiple) s.selectedIndex = 0; });
+  $$('#sidebar input').forEach(function(i) { i.value = ''; });
+  fetchGraph();
+}
+
+function updateStatus() {
+  if (!graphData) return;
+  var s = graphData.stats || {};
+  var vis = getVisModel(), srch = getSearchModel();
+  var txt = (s.n_nodes || 0).toLocaleString() + ' nodes \u00b7 ' + (s.n_edges || 0).toLocaleString() + ' edges' +
+    (s.n_filtered > 0 ? ' \u00b7 ' + s.n_filtered + ' filtered' : '') +
+    ' | pos=' + vis + ' search=' + srch;
+  $('#status-text').textContent = txt;
+  $('#filter-stats').textContent = txt;
+}
+
+// ── Toolbar change handlers ───────────────────────────────────────────
+['t-vis-model','t-search-model','t-k','t-mode','t-color','t-scope'].forEach(function(id) {
+  var el = document.getElementById(id);
+  if (el) el.addEventListener('change', function() {
+    _log('dropdown change: ' + id + ' = ' + el.value);
+    saveSettings();
+    if (id === 't-color' && graphData) {
+      renderGraph();
+      // Color change doesn't rebuild graph, just re-select to keep detail
+      if (selectedNode && graph && graph.hasNode(selectedNode)) {
+        selectNode(selectedNode);
+      }
+    } else {
+      fetchGraph();
+    }
+  });
+});
+
+// ── Populate model dropdowns from backend ─────────────────────────────
+var _MODEL_LABELS = {
+  UMAP_2D:'UMAP 2D', PCA_2D:'PCA 2D', TSNE_2D:'t-SNE 2D',
+  UMAP_16:'UMAP 16D', UMAP_32:'UMAP 32D', PCA_32:'PCA 32D',
+};
+function _modelLabel(m) { return _MODEL_LABELS[m.model_name] || (m.model_name + ' (' + m.n_dims + 'D)'); }
+
+async function loadModelOptions() {
+  try {
+    var resp = await fetch(API_BASE + '/api/models');
+    if (!resp.ok) throw new Error('Models endpoint ' + resp.status);
+    var data = await resp.json();
+
+    _log('loadModelOptions: layout=', data.layout_models, 'search=', data.search_models);
+
+    // Build health map
+    _modelHealth = {};
+    (data.health || []).forEach(function(h) { _modelHealth[h.model_name] = h.ready; });
+
+    // Position selector — layout models only (2D)
+    var visSel = $('#t-vis-model');
+    visSel.innerHTML = '';
+    (data.layout_models || []).forEach(function(m) {
+      var opt = document.createElement('option');
+      opt.value = m.model_name;
+      var ready = _modelHealth[m.model_name] !== false;
+      opt.textContent = _modelLabel(m) + (ready ? '' : ' \u26a0');
+      opt.disabled = !ready;
+      if (m.model_name === 'UMAP_2D') opt.selected = true;
+      visSel.appendChild(opt);
+    });
+
+    // Search model — all models
+    var searchSel = $('#t-search-model');
+    searchSel.innerHTML = '';
+    (data.search_models || []).forEach(function(m) {
+      var opt = document.createElement('option');
+      opt.value = m.model_name;
+      var ready = _modelHealth[m.model_name] !== false;
+      opt.textContent = _modelLabel(m) + (ready ? '' : ' \u26a0');
+      opt.disabled = !ready;
+      if (m.model_name === 'UMAP_2D') opt.selected = true;
+      searchSel.appendChild(opt);
+    });
+
+    _log('Dropdowns populated: vis=' + visSel.value + ' (' + visSel.options.length + ' opts)' +
+         ' search=' + searchSel.value + ' (' + searchSel.options.length + ' opts)');
+
+    // Verify both selects have a value
+    if (!visSel.value) {
+      _warn('vis-model dropdown has no value!');
+      if (visSel.options.length > 0) visSel.selectedIndex = 0;
+    }
+    if (!searchSel.value) {
+      _warn('search-model dropdown has no value!');
+      if (searchSel.options.length > 0) searchSel.selectedIndex = 0;
+    }
+
+  } catch (e) {
+    _err('loadModelOptions error:', e);
+    showError('Failed to load models: ' + e.message, 0);
+    // Fallback
+    ['#t-vis-model', '#t-search-model'].forEach(function(sel) {
+      var el = $(sel);
+      el.innerHTML = '<option value="UMAP_2D" selected>UMAP 2D</option>';
+    });
+  }
+}
+
+// ── Diagnostics overlay (Ctrl+Shift+D) ───────────────────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+    e.preventDefault();
+    toggleDiagnostics();
+  }
+});
+
+function toggleDiagnostics() {
+  var diag = $('#nm-diagnostics');
+  if (diag) { diag.remove(); return; }
+  diag = document.createElement('div');
+  diag.id = 'nm-diagnostics';
+  diag.style.cssText =
+    'position:fixed;top:20px;right:20px;width:420px;max-height:80vh;overflow-y:auto;' +
+    'background:var(--surface2);border:1px solid var(--accent);border-radius:8px;' +
+    'padding:14px;z-index:1000;font-size:11px;font-family:monospace;color:var(--text);';
+
+  var st = window.NM.state;
+  diag.innerHTML =
+    '<div style="display:flex;justify-content:space-between;margin-bottom:8px">' +
+      '<strong style="color:var(--accent)">NoduleMap Diagnostics</strong>' +
+      '<span style="cursor:pointer;color:var(--text2)" onclick="this.parentElement.parentElement.remove()">\u2715</span>' +
+    '</div>' +
+    '<div><b>Version:</b> ' + NM_VERSION + '</div>' +
+    '<div><b>Debug:</b> ' + NM_DEBUG + '</div>' +
+    '<div><b>Vis model:</b> ' + getVisModel() + '</div>' +
+    '<div><b>Search model:</b> ' + getSearchModel() + '</div>' +
+    '<div><b>Selected node:</b> ' + (selectedNode || '(none)') + '</div>' +
+    '<div><b>Graph nodes:</b> ' + (graph ? graph.order : 'null') + '</div>' +
+    '<div><b>Graph edges:</b> ' + (graph ? graph.size : 'null') + '</div>' +
+    '<div><b>Sigma alive:</b> ' + (!!renderer) + '</div>' +
+    '<div><b>graphData:</b> ' + JSON.stringify(st.graphData || null) + '</div>' +
+    '<div><b>lastFetch:</b> <pre style="white-space:pre-wrap;font-size:10px">' + JSON.stringify(st.lastFetchBody, null, 1) + '</pre></div>' +
+    '<div><b>lastSelect:</b> <pre style="white-space:pre-wrap;font-size:10px">' + JSON.stringify(st.lastSelect, null, 1) + '</pre></div>' +
+    '<div><b>Model health:</b> <pre style="white-space:pre-wrap;font-size:10px">' + JSON.stringify(_modelHealth, null, 1) + '</pre></div>' +
+    '<hr style="border-color:var(--border);margin:8px 0">' +
+    '<div>' +
+      '<b>API tests:</b> <button class="btn btn-sm" onclick="runDiagApiTests()" style="margin-left:8px">Run All</button>' +
+      '<div id="nm-diag-results" style="margin-top:6px"></div>' +
+    '</div>' +
+    '<hr style="border-color:var(--border);margin:8px 0">' +
+    '<div style="color:var(--text2);font-size:10px">' +
+      'Ctrl+Shift+D to close. Enable debug: <code>NM_DEBUG=true</code> in console or <code>?debug=1</code> in URL.' +
+    '</div>';
+  document.body.appendChild(diag);
+}
+
+async function runDiagApiTests() {
+  var out = $('#nm-diag-results');
+  if (!out) return;
+  out.innerHTML = '<span style="color:var(--yellow)">Running...</span>';
+
+  var vis = getVisModel(), srch = getSearchModel();
+  var testNode = (graphData && graphData.nodes && graphData.nodes[0]) ? graphData.nodes[0].id : 'DLCS24_DLCS_0001_01';
+  var results = [];
+
+  // 1: /api/models
+  try {
+    var r = await fetch(API_BASE + '/api/models');
+    results.push('/api/models: ' + r.status + ' ' + (r.ok ? '\u2713' : '\u2717'));
+  } catch (e) { results.push('/api/models: FAIL ' + e.message); }
+
+  // 2: /api/graph POST
+  try {
+    var r2 = await fetch(API_BASE + '/api/graph', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({vis_model: vis, search_model: srch, feature_set:'reinsertion_core', k:3}),
+    });
+    var d2 = await r2.json();
+    results.push('/api/graph vis=' + vis + ' srch=' + srch + ': ' + r2.status + ' nodes=' + (d2.nodes || []).length);
+  } catch (e) { results.push('/api/graph: FAIL ' + e.message); }
+
+  // 3: /api/node detail
+  try {
+    var r3 = await fetch(API_BASE + '/api/node/' + testNode + '?model=' + vis + '&feature_set=reinsertion_core');
+    results.push('/api/node/' + testNode + ' model=' + vis + ': ' + r3.status + ' ' + (r3.ok ? '\u2713' : '\u2717'));
+  } catch (e) { results.push('/api/node: FAIL ' + e.message); }
+
+  // 4: neighbors
+  try {
+    var r4 = await fetch(API_BASE + '/api/node/' + testNode + '/neighbors?model=' + srch + '&feature_set=reinsertion_core&k=3&debug=1');
+    var d4 = await r4.json();
+    var dbg = d4._debug ? ('dim=' + d4._debug.embedding_dim + ' ms=' + d4._debug.elapsed_ms) : 'no-debug';
+    results.push('neighbors model=' + srch + ': ' + r4.status + ' n=' + (d4.neighbors || []).length + ' ' + dbg);
+  } catch (e) { results.push('neighbors: FAIL ' + e.message); }
+
+  // 5: thumbnail
+  try {
+    var r5 = await fetch(API_BASE + '/api/node/' + testNode + '/axial_thumbnail?model=' + vis + '&feature_set=reinsertion_core');
+    results.push('thumbnail: ' + r5.status + (r5.ok ? ' bytes=' + (await r5.blob()).size : ' FAIL'));
+  } catch (e) { results.push('thumbnail: FAIL ' + e.message); }
+
+  out.innerHTML = results.map(function(r) {
+    var color = (r.indexOf('FAIL') >= 0 || r.indexOf('\u2717') >= 0) ? 'var(--red)' : 'var(--green)';
+    return '<div style="color:' + color + '">' + r + '</div>';
+  }).join('');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────
+(async function init() {
+  _log('init start, version', NM_VERSION, 'debug:', NM_DEBUG);
+  // Version is shown in the app-bar chip; no floating watermark (it overlapped the footer).
+  try {
+    await loadModelOptions();
+    restoreSettings();   // apply saved dropdown values AFTER options are populated
+    _log('init: models loaded, vis=' + getVisModel() + ' search=' + getSearchModel());
+    await loadFilterOptions();
+    _log('init: filters loaded');
+    await fetchGraph();
+    _log('init: graph loaded');
+  } catch (e) {
+    _err('init FATAL:', e);
+    showError('Initialization failed: ' + e.message, 0);
+    hideLoading();
+  }
+})();
+</script>
+</body>
+</html>

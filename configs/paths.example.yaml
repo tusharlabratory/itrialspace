@@ -1,0 +1,61 @@
+# iTrialSpace path layout — unified data directory.
+#
+# Copy to `configs/paths.yaml` and adjust if your layout differs. ${ITRIALSPACE_DATA_DIR}
+# is expanded by itrialspace.config.settings (default: ~/.itrialspace/data).
+#
+#   ${ITRIALSPACE_DATA_DIR}/
+#   ├── raw_ct/{DATASET}/          CT scans (resampled NIfTI)
+#   ├── masks/{DATASET}/
+#   │   ├── nodule_seg/            Individual nodule masks
+#   │   ├── combined_seg/          Combined patient masks
+#   │   ├── organ_seg/             VISTA3D organ segmentations (raw, deprecated)
+#   │   └── refined_seg/           Refined organ + body segmentations (used by default)
+#   ├── profiles/                  Nodule profile CSVs
+#   └── meta/                      Original dataset metadata CSVs
+#
+# ct_path values in profile CSVs are relative to raw_ct/, e.g.
+#   "DLCS24/DLCS_0001.nii.gz"  →  ${ITRIALSPACE_DATA_DIR}/raw_ct/DLCS24/DLCS_0001.nii.gz
+
+# ── Global base directory ──────────────────────────────────────────────────
+base_dir: ${ITRIALSPACE_DATA_DIR}
+
+# ── Per-dataset configuration ──────────────────────────────────────────────
+# Only override patterns/flags when they differ from the defaults:
+#   organ_seg_pattern:     "{ct_id}_seg.nii.gz"
+#   nodule_seg_pattern:    "{annotation_id}.nii.gz"
+#   combined_mask_pattern: "{ct_id}_mask.nii.gz"
+
+datasets:
+
+  DLCS24:
+    profile_csv: DLCS24_nodule_profiles.csv
+    meta_csv: DLCS24_BMdataset_FEB192026_FIT_v1.csv
+
+  LUNA25:
+    profile_csv: LUNA25_nodule_profiles.csv
+    meta_csv: LUNA25_dataset_FEB192026_FIT_v1.csv
+
+  LUNA16:
+    profile_csv: LUNA16_nodule_profiles.csv
+    meta_csv: LUNA16_dataset_FEB192026_FIT_v1.csv
+
+  LUNGx:
+    profile_csv: LUNGx_nodule_profiles.csv
+    meta_csv: LUNGx_dataset_FEB192026_FIT_v1.csv
+
+  LNDbv4:
+    profile_csv: LNDbv4_nodule_profiles.csv
+    meta_csv: LNDBv4_dataset_FEB192026_FIT_v1.csv
+
+  NSCLCR:
+    profile_csv: NSCLCR_nodule_profiles.csv
+    meta_csv: NSCLCR_dataset_FEB192026_FIT_v1.csv
+    nodule_seg_pattern: "{annotation_id}.nii.gz"
+    combined_mask_pattern: "{ct_id}.nii.gz"
+
+  IMDCT:
+    profile_csv: IMDCT_nodule_profiles.csv
+    meta_csv: IMDCT_dataset_FEB192026_FIT_v1.csv
+    nodule_seg_use_ct_id: true
+    nodule_seg_pattern: "{ct_id}_seg.nii.gz"
+    combined_mask_pattern: "{ct_id}_seg.nii.gz"

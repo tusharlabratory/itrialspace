@@ -1,0 +1,68 @@
+# iTrialSpace — GPU image for synthesis (NodMAISI) and VLM evaluation.
+# Pinned to the development environment: CUDA 12.1, torch 2.4.1, git-pinned MONAI.
+#
+#   docker build -t itrialspace-gpu -f docker/Dockerfile.gpu .
+#
+#   # Step 3 synthesis (mount data, outputs, and the NodMAISI weights):
+#   docker run --rm --gpus all \
+#       -e ITRIALSPACE_DATA_DIR=/data -e ITRIALSPACE_OUTPUT_DIR=/out \
+#       -e NODMAISI_MODELS_DIR=/models \
+#       -v /host/iTrialSpace:/data -v /host/outputs:/out -v /host/nodmaisi/models:/models \
+#       --entrypoint python itrialspace-gpu \
+#       -m itrialspace.synthesis.tools.run_itrialspace_to_ct \
+#           --audit /out/inserted_masks/mode1_controlled_prevalence/audit.json \
+#           --config src/itrialspace/synthesis/tools/integration_config.yaml \
+#           --outdir /out/generated_cts/mode1_controlled_prevalence
+#
+# For a byte-for-byte clone of the dev env instead, build from requirements.lock.txt
+# (see docs/installation.md). Base matches torch 2.4.1+cu121.
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    ITRIALSPACE_DATA_DIR=/data \
+    ITRIALSPACE_OUTPUT_DIR=/out \
+    NODMAISI_MODELS_DIR=/models
+
+# System Python (3.10 on 22.04; package requires >=3.10) + libs for nibabel/SimpleITK/matplotlib
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 python3-pip python3-dev build-essential git \
+        libgl1 libglib2.0-0 curl \
+    && ln -sf /usr/bin/python3 /usr/bin/python \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . .
+
+# Match the dev env: torch 2.4.1 (cu121) and the git-pinned MONAI build, then the
+# package (editable so the synthesis subprocess path model resolves like dev).
+RUN pip install --upgrade pip \
+    && pip install torch==2.4.1 --index-url https://download.pytorch.org/whl/cu121 \
+    && pip install "monai @ git+https://github.com/Project-MONAI/MONAI.git@c3a317d2bcb486199f40bda0d722a41e3869712a" \
+    && pip install -e ".[imaging,synthesis,vlm,apps]"
+
+# Pin the VLM/transformers stack to the dev-env (requirements.lock.txt) versions.
+# The unpinned [vlm] extra otherwise pulls transformers 5.x, which references a
+# torch-2.7-only dtype (float8_e8m0fnu) and crashes BiomedCLIP/MedGemma on torch 2.6.
+RUN pip install --no-deps \
+        transformers==4.51.3 \
+        tokenizers==0.21.4 \
+        huggingface_hub==0.36.2 \
+        open_clip_torch==2.32.0 \
+        timm==1.0.27 \
+        safetensors==0.7.0
+
+# Non-root user; create the runtime mount points.
+# Make /app world-readable so the image can also be run with `--user <host uid>`
+# (needed when the mounted data / weights are owned by a non-1000 host user, e.g.
+# data on a group-restricted share or weights under a home dir). The `its` user
+# remains the default for simple runs.
+RUN useradd -m -u 1000 its && mkdir -p /data /out /models \
+    && chown -R its:its /app /data /out /models \
+    && chmod -R a+rX /app
+USER its
+
+# Default to the umbrella CLI; override --entrypoint for synthesis/VLM module runs.
+ENTRYPOINT ["its"]
+CMD ["config"]

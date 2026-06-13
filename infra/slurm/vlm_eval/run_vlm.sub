@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=vlm_run
+#SBATCH --partition=vram48
+#SBATCH --ntasks=1
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=24:00:00
+#SBATCH --output=logs/vlm_run-%j.out
+#SBATCH --error=logs/vlm_run-%j.err
+
+# ===========================================================================
+#  STEP 2/3 — Run ONE VLM across all 4 conditions × 3 tasks on a built eval set.
+#  GPU. Writes <EVAL_DIR>/<MODEL>/<condition>/<task>_results.csv.
+#
+#  Env knobs:
+#    MODEL      biomedclip | llava_med | medgemma   (default: biomedclip)
+#    EVAL_DIR   dir holding eval_dataset.csv for this model's profile
+#               (default: $ITRIALSPACE_OUTPUT_DIR/vlm_eval_demo/<profile>)
+#               NOTE: MedGemma needs the lung_axial_medgemma eval set; BiomedCLIP
+#               and LLaVA-Med need lung_axial. Point EVAL_DIR at the matching profile.
+#    CASE_IDS   optional frozen split file → score only those cases (--case-ids)
+#    CONDITIONS optional subset, e.g. "plain bbox"   (default: all 4)
+#
+#  Run all three models on the DEMO synthetic set:
+#    B=$ITRIALSPACE_OUTPUT_DIR/vlm_eval_demo
+#    MODEL=biomedclip EVAL_DIR=$B/lung_axial            sbatch infra/slurm/vlm_eval/run_vlm.sub
+#    MODEL=llava_med  EVAL_DIR=$B/lung_axial            sbatch infra/slurm/vlm_eval/run_vlm.sub
+#    MODEL=medgemma   EVAL_DIR=$B/lung_axial_medgemma   sbatch infra/slurm/vlm_eval/run_vlm.sub
+#
+#  Run on the FULL released dataset (synthetic) on a fixed split:
+#    B=$ITRIALSPACE_DATA_DIR/vlm_dataset/synthetic
+#    CASE_IDS=$ITRIALSPACE_DATA_DIR/vlm_dataset/splits/release_v1_full.synthetic.txt \
+#    MODEL=biomedclip EVAL_DIR=$B/lung_axial sbatch infra/slurm/vlm_eval/run_vlm.sub
+# ===========================================================================
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+set -uo pipefail
+
+MODEL="${MODEL:-biomedclip}"
+case "${MODEL}" in
+    biomedclip|llava_med) DEF_PROFILE="lung_axial" ;;
+    medgemma)             DEF_PROFILE="lung_axial_medgemma" ;;
+    *) echo "ERROR: MODEL must be biomedclip|llava_med|medgemma (got '${MODEL}')."; exit 1 ;;
+esac
+EVAL_DIR="${EVAL_DIR:-${ITRIALSPACE_OUTPUT_DIR}/vlm_eval_demo/${DEF_PROFILE}}"
+DATASET_CSV="${EVAL_DIR}/eval_dataset.csv"
+OUTPUT_DIR="${EVAL_DIR}/${MODEL}"
+
+cd "${PROJ_DIR}"
+mkdir -p logs
+
+if [ ! -f "${DATASET_CSV}" ]; then
+    echo "ERROR: ${DATASET_CSV} not found. Build it first (build_dataset.sub)."; exit 1
+fi
+
+# MedGemma (torch 2.6) needs the conda cuDNN 9 on LD_LIBRARY_PATH.
+if [ "${MODEL}" = "medgemma" ]; then
+    export LD_LIBRARY_PATH="$(python -c 'import os,nvidia.cudnn;print(os.path.dirname(nvidia.cudnn.__file__)+"/lib")' 2>/dev/null):${LD_LIBRARY_PATH:-}"
+fi
+
+EXTRA=()
+[ -n "${CASE_IDS:-}" ] && EXTRA+=(--case-ids "${CASE_IDS}")
+if [ -n "${CONDITIONS:-}" ]; then EXTRA+=(--image-condition ${CONDITIONS}); else EXTRA+=(--run-all-conditions); fi
+
+echo "=== run ${MODEL} — all conditions × {presence,lobe,size} ==="
+echo "  dataset : ${DATASET_CSV}"
+echo "  output  : ${OUTPUT_DIR}"
+echo "  GPU     : $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo N/A)"
+[ -n "${CASE_IDS:-}" ] && echo "  split   : ${CASE_IDS}"
+
+python -m itrialspace.evaluation.vlm_eval.runners.run_conditions \
+    --model "${MODEL}" \
+    --dataset-csv "${DATASET_CSV}" \
+    --output-dir "${OUTPUT_DIR}" \
+    --tasks presence lobe size \
+    "${EXTRA[@]}"
+rc=$?
+
+if [ "${rc}" -ne 0 ]; then
+    echo "[$(date +%T)] FAILED (exit ${rc}). See the .err log."; exit "${rc}"
+fi
+echo "[$(date +%T)] Done. Results: ${OUTPUT_DIR}"

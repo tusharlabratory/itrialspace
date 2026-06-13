@@ -1,0 +1,87 @@
+#!/bin/bash
+# ──────────────────────────────────────────────────────────────────────────────
+# Mode 2: Size Detection Curve — Mask Insertion
+#
+# Inserts donor nodule masks for the size-stratified FROC cohorts.
+# Mode 2 produces multiple manifests (one per size bucket), so consider
+# using the array job variant (mode2_insert_masks_array.sub) instead.
+#
+# This script processes a single manifest. Override MANIFEST_PATH to select
+# the specific size bucket manifest.
+#
+# Usage:
+#   MANIFEST_PATH=.../size_5_10mm.csv sbatch mode2_insert_masks.sub
+# ──────────────────────────────────────────────────────────────────────────────
+
+#SBATCH --job-name=ins_M2_Size
+#SBATCH --partition=defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=1-00:00:00
+#SBATCH --output=logs/insert_mode2_size_detection_curve_%j.out
+#SBATCH --error=logs/insert_mode2_size_detection_curve_%j.err
+
+# ── Load shared environment (PROJ_DIR, ITRIALSPACE_*, conda) — before any var use ──
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+
+set -euo pipefail
+
+BASE_DIR="${ITRIALSPACE_DATA_DIR}"
+MANIFEST_ROOT="${ITRIALSPACE_OUTPUT_DIR}/manifests"
+OUTPUT_ROOT="${ITRIALSPACE_OUTPUT_DIR}/inserted_masks"
+PROJECT_DIR="${PROJ_DIR}"
+
+TRIAL_MODE="mode2_size_detection_curve"
+MANIFEST_PATH="${MANIFEST_PATH:-${MANIFEST_ROOT}/${TRIAL_MODE}/size_curve_5-10mm.csv}"
+OUT_DIR="${OUT_DIR:-${OUTPUT_ROOT}/${TRIAL_MODE}}"
+CONFIG_PATH="${CONFIG_PATH:-config/defaults.yaml}"
+N_JOBS="${N_JOBS:-8}"
+DRY_RUN="${DRY_RUN:-false}"
+SEED="${SEED:-42}"
+
+echo "=================================================================="
+echo " iTrialSpace Mask Insertion — Mode 2: Size Detection Curve"
+echo " Job ID: ${SLURM_JOB_ID:-local}  Node: $(hostname)  Date: $(date)"
+echo "=================================================================="
+echo " MANIFEST_PATH : ${MANIFEST_PATH}"
+echo " OUT_DIR        : ${OUT_DIR}"
+echo " N_JOBS         : ${N_JOBS}"
+echo ""
+
+cd "${PROJECT_DIR}"
+
+if [ ! -f "${MANIFEST_PATH}" ]; then
+    echo "FATAL: Manifest not found: ${MANIFEST_PATH}"
+    exit 1
+fi
+mkdir -p "${OUT_DIR}"
+
+CFG_ARG=""
+if [ -f "src/itrialspace/mask_inserter/${CONFIG_PATH}" ]; then
+    CFG_ARG="--config src/itrialspace/mask_inserter/${CONFIG_PATH}"
+elif [ -f "${CONFIG_PATH}" ]; then
+    CFG_ARG="--config ${CONFIG_PATH}"
+fi
+
+EXTRA_ARGS=""
+[ "${DRY_RUN}" = "true" ] && EXTRA_ARGS="--dry-run"
+
+echo "Running: python3 -m itrialspace.mask_inserter run ..."
+echo "  manifest: ${MANIFEST_PATH}"
+echo "  output:   ${OUT_DIR}"
+
+python3 -m itrialspace.mask_inserter run \
+    --manifest "${MANIFEST_PATH}" \
+    --output-dir "${OUT_DIR}" \
+    ${CFG_ARG} \
+    --trial-name "${TRIAL_MODE}" \
+    --seed ${SEED} \
+    --n-jobs ${N_JOBS} \
+    ${EXTRA_ARGS}
+EXIT_CODE=$?
+echo "Finished: $(date)  Exit: ${EXIT_CODE}"
+exit ${EXIT_CODE}

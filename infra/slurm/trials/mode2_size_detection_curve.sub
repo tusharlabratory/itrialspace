@@ -1,0 +1,39 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M2_SizeCurve
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode2_size_detection_curve.out
+#SBATCH --error=logs/mode2_size_detection_curve.err
+
+echo "=== iTrialSpace Trial Mode 2: Size Detection Curve ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"; itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_DIR="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode2_size_detection_curve"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# Produces 6 manifests (one per size bucket: <5mm, 5-10mm, 10-15mm, 15-20mm, 20-30mm, >30mm)
+# N_PER_BUCKET=100          # Cases per size bucket   # real run (commented for 5-case smoke test)
+N_PER_BUCKET=5          # Cases per size bucket
+LABEL=1                   # 1=malignant nodules (for FROC detection curves)
+TEMPLATE="NLST"           # Trial template
+SEED=42
+
+# ── Run ────────────────────────────────────────────────────────────────────
+python3 "$RUNNER" \
+    --mode size_detection_curve \
+    --output-dir "$OUTPUT_DIR" \
+    --n-per-bucket $N_PER_BUCKET \
+    --label $LABEL \
+    --template "$TEMPLATE" \
+    --seed $SEED
+
+echo "Finished: $(date)"

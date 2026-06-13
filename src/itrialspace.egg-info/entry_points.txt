@@ -1,0 +1,6 @@
+[console_scripts]
+its = itrialspace.cli:main
+its-insert = itrialspace.mask_inserter.cli:main
+its-nodulemap = itrialspace.apps.nodulemap.cli.cli:main
+its-retriever = itrialspace.apps.retriever.cli:main
+its-trials = itrialspace.trials.run_trial:main

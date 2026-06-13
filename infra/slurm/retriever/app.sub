@@ -1,0 +1,128 @@
+#!/bin/bash
+#SBATCH --job-name=iTrialSpace_Retriever
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=7-00:00:00
+#SBATCH --output=logs/retriever-app-%j.out
+#SBATCH --error=logs/retriever-app-%j.err
+
+# ===========================================================================
+#  iTrialSpace Retriever  —  FastAPI (8421) + Streamlit UI (8501) in one job
+#
+#  Submit:   sbatch infra/slurm/retriever/app.sub
+#  Check:    squeue -u $USER
+#  Logs:     tail -f logs/retriever-app-<JOBID>.out   (prints node, ports, tunnel line)
+#  Stop:     scancel <JOBID>
+#  Ports are env-overridable: RETRIEVER_API_PORT / RETRIEVER_UI_PORT.
+#
+#  Auto-publish: by default the job reverse-tunnels its ports back to the host you ran
+#  `sbatch` from (the login node), so you ALWAYS connect at login-node:8501 — no matter
+#  which compute node it lands on, and no manual `ssh -L`. With VS Code on the login node,
+#  just open http://localhost:8501. (Disable with ITS_AUTOTUNNEL=0; needs passwordless
+#  SSH compute→login. Fallback manual tunnel is printed in the log.)
+# ===========================================================================
+
+echo "======================================"
+echo "  iTrialSpace Retriever — starting"
+echo "  Node:   $(hostname)"
+echo "  Date:   $(date)"
+echo "  Job ID: ${SLURM_JOB_ID:-local}"
+echo "======================================"
+
+# ── Environment ──────────────────────────────────────────────────────────
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+APP_DIR="${PROJ_DIR}"
+cd "$APP_DIR"
+
+API_PORT="${RETRIEVER_API_PORT:-8421}"
+UI_PORT="${RETRIEVER_UI_PORT:-8501}"
+
+# Create logs dir if missing
+mkdir -p logs
+
+# ── Launch FastAPI backend ───────────────────────────────────────────────
+echo "[$(date +%T)] Starting FastAPI on port $API_PORT …"
+uvicorn itrialspace.apps.retriever.api.app:create_app \
+    --factory \
+    --host 0.0.0.0 \
+    --port $API_PORT \
+    --workers 1 \
+    &
+API_PID=$!
+echo "[$(date +%T)] FastAPI PID = $API_PID"
+
+# Wait for API to be ready (up to 120s for 14k nodule load)
+echo "[$(date +%T)] Waiting for API to be ready …"
+for i in $(seq 1 120); do
+    if curl -sf http://localhost:$API_PORT/health > /dev/null 2>&1; then
+        echo "[$(date +%T)] API ready after ${i}s"
+        break
+    fi
+    sleep 1
+done
+
+# ── Launch Streamlit frontend ────────────────────────────────────────────
+echo "[$(date +%T)] Starting Streamlit on port $UI_PORT …"
+streamlit run src/itrialspace/apps/retriever/ui/app.py \
+    --server.port $UI_PORT \
+    --server.headless true \
+    --server.address 0.0.0.0 \
+    -- --api-url http://localhost:$API_PORT \
+    &
+UI_PID=$!
+echo "[$(date +%T)] Streamlit PID = $UI_PID"
+
+# ── Auto-publish to the login node (reverse tunnel) ──────────────────────
+# The job runs on a compute node that changes every launch. To avoid re-doing an
+# `ssh -L` each time, we reverse-tunnel the ports BACK to the host you ran `sbatch`
+# from ($SLURM_SUBMIT_HOST = the login node). Then you always connect at the SAME
+# place — login-node:$UI_PORT — regardless of which compute node this is.
+# Since VS Code runs on the login node, http://localhost:$UI_PORT then "just works".
+# Requires passwordless SSH compute→login (typical on HPC). Disable with ITS_AUTOTUNNEL=0.
+TUNNEL_PID=""
+if [ "${ITS_AUTOTUNNEL:-1}" = "1" ] && [ -n "${SLURM_SUBMIT_HOST:-}" ]; then
+    echo "[$(date +%T)] Reverse-tunneling $UI_PORT/$API_PORT to ${SLURM_SUBMIT_HOST} …"
+    ssh -NR ${UI_PORT}:localhost:${UI_PORT} -R ${API_PORT}:localhost:${API_PORT} \
+        -o BatchMode=yes -o ExitOnForwardFailure=yes \
+        -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=60 \
+        "${SLURM_SUBMIT_HOST}" &
+    TUNNEL_PID=$!
+    sleep 3
+    if kill -0 "$TUNNEL_PID" 2>/dev/null; then
+        echo "[$(date +%T)] Auto-tunnel UP — open http://localhost:$UI_PORT on ${SLURM_SUBMIT_HOST}"
+    else
+        echo "[$(date +%T)] Auto-tunnel could not bind (port busy on ${SLURM_SUBMIT_HOST}, or"
+        echo "             no passwordless SSH back). Use the manual tunnel below instead."
+        TUNNEL_PID=""
+    fi
+fi
+
+echo "======================================"
+echo "  Services running on $(hostname)"
+echo "  FastAPI : http://$(hostname):$API_PORT"
+echo "  Streamlit: http://$(hostname):$UI_PORT"
+echo ""
+if [ -n "$TUNNEL_PID" ]; then
+    echo "  Auto-published to ${SLURM_SUBMIT_HOST} — just open:"
+    echo "    http://localhost:$UI_PORT   (from ${SLURM_SUBMIT_HOST} / VS Code)"
+else
+    echo "  Manual SSH tunnel (from your laptop) — UI only needs $UI_PORT:"
+    echo "    ssh -L $UI_PORT:$(hostname):$UI_PORT \$USER@<login-node>"
+    echo "    Then open: http://localhost:$UI_PORT"
+fi
+echo "======================================"
+
+# ── Wait for either process to exit ─────────────────────────────────────
+wait -n $API_PID $UI_PID
+EXIT_CODE=$?
+echo "[$(date +%T)] One process exited (code=$EXIT_CODE). Cleaning up …"
+
+# Kill servers + tunnel on exit
+kill $API_PID $UI_PID $TUNNEL_PID 2>/dev/null
+wait
+echo "[$(date +%T)] Done."

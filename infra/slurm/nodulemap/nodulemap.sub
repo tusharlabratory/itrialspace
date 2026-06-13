@@ -1,0 +1,102 @@
+#!/bin/bash
+#SBATCH --job-name=NoduleMap
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=7-00:00:00
+#SBATCH --output=logs/nodulemap-%j.out
+#SBATCH --error=logs/nodulemap-%j.err
+
+# ===========================================================================
+#  iTrialSpace NoduleMap — Server (serve only)
+#
+#  Serves the FastAPI + sigma.js web app on port 8422 from pre-built
+#  artifacts. It does NOT build anything — build once with
+#  `sbatch rebuild_nodulemap.sub` (or `its-nodulemap build/edges`) first.
+#
+#  Submit:  sbatch nodulemap.sub
+#  Check:   squeue -u $USER  ·  tail -f logs/nodulemap-<JOBID>.out
+#  Stop:    scancel <JOBID>
+#
+#  Auto-publish: by default the job reverse-tunnels its port back to the host you ran
+#  `sbatch` from (the login node), so you always connect at login-node:8422 no matter which
+#  compute node it lands on. With VS Code on the login node, just open http://localhost:8422.
+#  (Disable with ITS_AUTOTUNNEL=0; needs passwordless SSH compute→login. Manual fallback:
+#   ssh -L 8422:<NODE>:8422 <user>@<login-node>)
+# ===========================================================================
+
+echo "======================================"
+echo "  iTrialSpace NoduleMap (serve)"
+echo "  Node:   $(hostname)"
+echo "  Date:   $(date)"
+echo "  Job ID: ${SLURM_JOB_ID:-local}"
+echo "======================================"
+
+# ── Environment ──────────────────────────────────────────────────────────
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+APP_DIR="${PROJ_DIR}"
+ARTIFACT_DIR="${NODULEMAP_ARTIFACTS:-${ITRIALSPACE_OUTPUT_DIR:-$APP_DIR}/nodulemap_artifacts}"
+PORT="${NODULEMAP_PORT:-8422}"
+
+cd "$APP_DIR"
+mkdir -p logs
+
+# ── Guard: artifacts must already exist ─────────────────────────────────
+if ! ls "$ARTIFACT_DIR"/embeddings_*.npy >/dev/null 2>&1; then
+    echo "ERROR: no embeddings found in $ARTIFACT_DIR"
+    echo "Build them first:  sbatch infra/slurm/nodulemap/rebuild_nodulemap.sub"
+    echo "(or: its-nodulemap build --all-2d --outdir \"$ARTIFACT_DIR\" && its-nodulemap edges ...)"
+    exit 1
+fi
+
+# ── Artifact summary ────────────────────────────────────────────────────
+echo ""
+echo "[$(date +%T)] ═══ Artifact summary ═══"
+python -m itrialspace.apps.nodulemap info --artifact-dir "$ARTIFACT_DIR"
+
+# ── Auto-publish to the login node (reverse tunnel) ──────────────────────
+# Reverse-tunnel the port BACK to the host you ran `sbatch` from ($SLURM_SUBMIT_HOST =
+# the login node), so you always connect at login-node:$PORT regardless of which compute
+# node this is — no manual `ssh -L`. With VS Code on the login node, just open
+# http://localhost:$PORT. Disable with ITS_AUTOTUNNEL=0; needs passwordless SSH compute→login.
+TUNNEL_PID=""
+if [ "${ITS_AUTOTUNNEL:-1}" = "1" ] && [ -n "${SLURM_SUBMIT_HOST:-}" ]; then
+    echo "[$(date +%T)] Reverse-tunneling $PORT to ${SLURM_SUBMIT_HOST} …"
+    ssh -NR ${PORT}:localhost:${PORT} \
+        -o BatchMode=yes -o ExitOnForwardFailure=yes \
+        -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=60 \
+        "${SLURM_SUBMIT_HOST}" &
+    TUNNEL_PID=$!
+    sleep 3
+    if kill -0 "$TUNNEL_PID" 2>/dev/null; then
+        echo "[$(date +%T)] Auto-tunnel UP — open http://localhost:$PORT on ${SLURM_SUBMIT_HOST}"
+    else
+        echo "[$(date +%T)] Auto-tunnel could not bind / no passwordless SSH back — tunnel manually."
+        TUNNEL_PID=""
+    fi
+fi
+trap '[ -n "$TUNNEL_PID" ] && kill "$TUNNEL_PID" 2>/dev/null' EXIT
+
+# ── Start server (blocks until the job is cancelled) ────────────────────
+echo ""
+echo "[$(date +%T)] ═══ Starting NoduleMap server ═══"
+export NODULEMAP_ARTIFACTS="$ARTIFACT_DIR"
+
+echo "======================================"
+echo "  NoduleMap running on $(hostname):$PORT"
+echo ""
+if [ -n "$TUNNEL_PID" ]; then
+    echo "  Auto-published — open: http://localhost:$PORT  (on ${SLURM_SUBMIT_HOST} / VS Code)"
+else
+    echo "  SSH tunnel (from your laptop):"
+    echo "    ssh -L $PORT:$(hostname):$PORT \$USER@<login-node>   →  http://localhost:$PORT"
+fi
+echo "======================================"
+
+python -m itrialspace.apps.nodulemap serve --artifact-dir "$ARTIFACT_DIR" --port "$PORT"
+
+echo "[$(date +%T)] Done."

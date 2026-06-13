@@ -1,0 +1,113 @@
+# iTrialSpace Mask Insertion Engine — defaults
+# Override per-site via --config flag or INSERTER_CONFIG env var.
+
+# ── Lobe label mapping (VISTA3D integer labels) ─────────────────────────────
+lobe_labels:
+  left_lung_upper_lobe: 28
+  left_lung_lower_lobe: 29
+  right_lung_upper_lobe: 30
+  right_lung_middle_lobe: 31
+  right_lung_lower_lobe: 32
+
+# String ↔ integer aliases accepted in manifest ``insertion_lobe`` column.
+# Keys are normalised lowercased names; values map to the canonical key above.
+lobe_aliases:
+  lul: left_lung_upper_lobe
+  lll: left_lung_lower_lobe
+  rul: right_lung_upper_lobe
+  rml: right_lung_middle_lobe
+  rll: right_lung_lower_lobe
+  left_upper: left_lung_upper_lobe
+  left_lower: left_lung_lower_lobe
+  right_upper: right_lung_upper_lobe
+  right_middle: right_lung_middle_lobe
+  right_lower: right_lung_lower_lobe
+
+# Labels treated as "whole lung" for fallback placement.
+lung_labels: [28, 29, 30, 31, 32]
+
+# ── Nodule output label ─────────────────────────────────────────────────────
+# Integer value written into the host output mask for inserted nodule voxels.
+# The intermediate binary mask (0/1) is converted to this label before writing.
+# Default 23; change without code edits by overriding this value.
+nodule_label_value: 23
+
+# Future extension: per-nodule-type label mapping (unused for now).
+# When populated, keys are nodule type strings and values are integer labels.
+# Example:  {"malignant": 23, "benign": 24}
+nodule_type_to_label: {}
+
+# ── Placement parameters ────────────────────────────────────────────────────
+placement:
+  # Maximum search radius (voxels) when snapping an out-of-mask candidate to
+  # the nearest valid voxel inside the target mask.
+  max_snap_radius_vox: 25
+
+  # Minimum distance (mm) from the lung boundary that an insertion centre must
+  # satisfy.  Set to 0 to disable.
+  min_pleural_dist_mm: 2.0
+
+  # If True, check for overlap with existing nodules in the combined mask and
+  # attempt to shift the placement to avoid it.
+  check_overlap: true
+
+  # Maximum fraction of donor mask voxels allowed to overlap with an existing
+  # nodule mask before the placement is declared infeasible.
+  max_overlap_fraction: 0.05
+
+  # Maximum additional shift (voxels) attempted to resolve overlap collisions.
+  max_collision_shift_vox: 15
+
+# ── Resampling parameters ───────────────────────────────────────────────────
+resample:
+  # Interpolation for binary masks: "nearest" (default) or "linear" then
+  # threshold.
+  interpolation: nearest
+
+  # After resampling, voxels with value >= this threshold are set to 1.
+  binary_threshold: 0.5
+
+  # Remove connected components smaller than this (voxels) after resampling.
+  min_component_size_vox: 3
+
+  # Fill holes in the binary mask after resampling.
+  fill_holes: true
+
+# ── Output naming ───────────────────────────────────────────────────────────
+output:
+  # Flat directory — all combined masks in one folder, no subdirectories.
+  use_case_subdirs: false
+
+  # Combined mask template.
+  # Delimiter convention: '--' separates fields, '-' separates key from value.
+  # Parsing: dict(f.split('-', 1) for f in stem.split('--')[1:] if '-' in f)
+  # Available placeholders: {trial_name}, {case_id}, {host_id}, {host_dataset}, {donor_id}.
+  # case_id is zero-padded to 4 digits. host_id is SHA-256[:8] when >20 chars.
+  combined_mask_template: "iTS--{trial_name}--C{case_id}--host-{host_id}--src-{host_dataset}--nod-{donor_id}_mask.nii.gz"
+
+  # Whether to save individual per-nodule binary masks (in addition to the combined mask).
+  save_per_nodule_mask: false
+
+  # Per-nodule mask template (only used when save_per_nodule_mask is true).
+  nodule_mask_template: "case_{case_id}_nodule_{nodule_idx}_mask.nii.gz"
+
+  # Audit log filename.
+  audit_name: audit.json
+
+  # Compress NIfTI outputs.
+  compress: true
+
+# ── Optional CT intensity insertion (experimental, off by default) ──────────
+ct_insertion:
+  enabled: false
+  blending_mode: poisson   # poisson | direct | alpha
+  boundary_width_mm: 2.0
+
+# ── Parallelism ─────────────────────────────────────────────────────────────
+parallel:
+  backend: loky        # loky | threading | sequential
+  n_jobs: 1
+  verbose: 10
+
+# ── Reproducibility ─────────────────────────────────────────────────────────
+seed: 42

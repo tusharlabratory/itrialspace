@@ -1,0 +1,38 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M1_Prevalence
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode1_controlled_prevalence.out
+#SBATCH --error=logs/mode1_controlled_prevalence.err
+
+echo "=== iTrialSpace Trial Mode 1: Controlled Prevalence Study ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"; itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_DIR="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode1_controlled_prevalence"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# N_CASES=1000           # paper run (commented for 5-case demo)
+N_CASES=5              # Total cases in the cohort
+PREVALENCE=0.05           # 5% malignancy prevalence (typical NLST-like)
+TEMPLATE="NLST"           # Trial template for demographics/size distribution
+SEED=42                   # Random seed for reproducibility
+
+# ── Run ────────────────────────────────────────────────────────────────────
+python3 "$RUNNER" \
+    --mode controlled_prevalence \
+    --output-dir "$OUTPUT_DIR" \
+    --n-cases $N_CASES \
+    --prevalence $PREVALENCE \
+    --template "$TEMPLATE" \
+    --seed $SEED
+
+echo "Finished: $(date)"

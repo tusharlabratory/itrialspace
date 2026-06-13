@@ -1,0 +1,39 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M8_AlgoComp
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode8_algorithm_comparison.out
+#SBATCH --error=logs/mode8_algorithm_comparison.err
+
+echo "=== iTrialSpace Trial Mode 8: Algorithm Comparison ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"; itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_DIR="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode8_algorithm_comparison"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# Single standardised cohort for head-to-head algorithm comparison
+# Fixed seed ensures identical manifest on every run
+# Use the same manifest to evaluate multiple CADe/CADx models
+# N_CASES=500   # real run (commented for 5-case smoke test)
+N_CASES=5
+TEMPLATE="NLST"
+SEED=42
+
+# ── Run ────────────────────────────────────────────────────────────────────
+python3 "$RUNNER" \
+    --mode algorithm_comparison \
+    --output-dir "$OUTPUT_DIR" \
+    --n-cases $N_CASES \
+    --template "$TEMPLATE" \
+    --seed $SEED
+
+echo "Finished: $(date)"

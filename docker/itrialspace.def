@@ -1,0 +1,68 @@
+# Apptainer/Singularity recipe for iTrialSpace (GPU) — for HPC clusters that use
+# Apptainer instead of Docker. Builds rootless, no Docker daemon required.
+#
+#   # Build the image (.sif) — run from the repo root:
+#   apptainer build itrialspace.sif docker/itrialspace.def
+#
+#   # Or convert the already-built Docker image:
+#   apptainer build itrialspace.sif docker-daemon://itrialspace-gpu:latest
+#
+#   # Run the umbrella CLI (Apptainer bind-mounts $HOME and $PWD by default; add others):
+#   apptainer run --nv \
+#       --env ITRIALSPACE_DATA_DIR=/data,ITRIALSPACE_OUTPUT_DIR=/out,NODMAISI_MODELS_DIR=/models \
+#       -B /scratch/.../iTrialSpace:/data,/scratch/.../outputs:/out,/path/nodmaisi/models:/models \
+#       itrialspace.sif config
+#
+#   # Step 3 synthesis:
+#   apptainer exec --nv \
+#       --env ITRIALSPACE_DATA_DIR=/data,ITRIALSPACE_OUTPUT_DIR=/out,NODMAISI_MODELS_DIR=/models \
+#       -B /host/iTrialSpace:/data,/host/outputs:/out,/host/nodmaisi/models:/models \
+#       itrialspace.sif \
+#       python -m itrialspace.synthesis.tools.run_itrialspace_to_ct \
+#           --audit /out/inserted_masks/mode1_controlled_prevalence/audit.json \
+#           --config /opt/itrialspace/src/itrialspace/synthesis/tools/integration_config.yaml \
+#           --outdir /out/generated_cts/mode1_controlled_prevalence
+#
+# NOTE: build from the repo root so %files can copy the source tree.
+
+Bootstrap: docker
+From: nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+%files
+    . /opt/itrialspace
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update && apt-get install -y --no-install-recommends \
+        python3 python3-pip python3-dev build-essential git \
+        libgl1 libglib2.0-0
+    ln -sf /usr/bin/python3 /usr/bin/python
+    rm -rf /var/lib/apt/lists/*
+
+    cd /opt/itrialspace
+    # Drop any host-local state copied in via %files
+    rm -rf .git .env logs/* **/__pycache__ 2>/dev/null || true
+    pip install --upgrade pip
+    pip install torch==2.4.1 --index-url https://download.pytorch.org/whl/cu121
+    pip install "monai @ git+https://github.com/Project-MONAI/MONAI.git@c3a317d2bcb486199f40bda0d722a41e3869712a"
+    pip install -e ".[imaging,synthesis,vlm]"
+
+%environment
+    export ITRIALSPACE_ROOT=/opt/itrialspace
+    export ITRIALSPACE_DATA_DIR=${ITRIALSPACE_DATA_DIR:-/data}
+    export ITRIALSPACE_OUTPUT_DIR=${ITRIALSPACE_OUTPUT_DIR:-/out}
+    export NODMAISI_MODELS_DIR=${NODMAISI_MODELS_DIR:-/models}
+    export PYTHONUNBUFFERED=1
+
+%runscript
+    exec its "$@"
+
+%labels
+    Name iTrialSpace
+    Description Synthetic Imaging Clinical Trial Engine (GPU)
+
+%help
+    iTrialSpace container. Bind your data/outputs/weights and set the matching
+    ITRIALSPACE_DATA_DIR / ITRIALSPACE_OUTPUT_DIR / NODMAISI_MODELS_DIR env vars.
+    Use `apptainer run` for the `its` CLI, or `apptainer exec ... python -m ...`
+    for synthesis/VLM module runs. See docs/installation.md.

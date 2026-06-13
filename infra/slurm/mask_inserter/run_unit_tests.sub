@@ -1,0 +1,44 @@
+#!/bin/bash
+#SBATCH --job-name=inserter_unit_tests
+#SBATCH --partition=common
+#SBATCH --mem=16G
+#SBATCH --cpus-per-task=4
+#SBATCH --time=01:00:00
+#SBATCH --output=unit_tests_%j.out
+#SBATCH --error=unit_tests_%j.err
+
+# ──────────────────────────────────────────────────────────────────────────
+# iTrialSpace Mask Inserter — Unit Tests on HPC
+#
+# Submit:   sbatch run_unit_tests.sub
+# ──────────────────────────────────────────────────────────────────────────
+
+set -euo pipefail
+
+echo "=== iTrialSpace Mask Inserter: Unit Tests ==="
+echo "Job ID:    ${SLURM_JOB_ID:-local}"
+echo "Node:      $(hostname)"
+echo "Date:      $(date)"
+echo ""
+
+# Activate environment
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"; itrialspace_activate_conda
+
+# Navigate to project root
+cd ${PROJ_DIR}
+
+echo "Python: $(which python)"
+echo "NumPy:  $(python -c 'import numpy; print(numpy.__version__)')"
+echo ""
+
+# Run unit tests (excludes full_volume marker)
+python -m pytest \
+    itrialspace_mask_inserter/tests/test_placement.py \
+    itrialspace_mask_inserter/tests/test_resample.py \
+    itrialspace_mask_inserter/tests/test_inserter.py \
+    -v --tb=short \
+    -m "not full_volume" \
+    2>&1
+
+echo ""
+echo "=== Unit tests complete: $(date) ==="

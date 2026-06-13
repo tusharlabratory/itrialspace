@@ -1,0 +1,157 @@
+# Published lung cancer screening trial parameters.
+# Used by TrialKnowledgeBase to instantiate TrialSpec objects.
+#
+# Sources:
+#   NLST:   Aberle et al. NEJM 2011; 365:395-409
+#   NELSON: de Koning et al. NEJM 2020; 382:503-513
+#   UKLS:   Field et al. Lancet Respir Med 2016; 4:699-709
+#   DANTE:  Infante et al. AJRCCM 2009; 180:445-453
+#   MILD:   Pastorino et al. ERJ 2012; 39:1354-1362
+
+trials:
+
+  NLST:
+    full_name: "National Lung Screening Trial"
+    publication: "Aberle et al. NEJM 2011"
+    population: screening
+    n_participants: 26722
+    demographics:
+      age_range: [55, 74]
+      age_mean: 61.4
+      age_std: 5.0
+      sex_ratio_male: 0.59
+      smoking_status: ["Current", "Former"]
+      pack_years_min: 30
+    nodule_prevalence:
+      any_nodule: 0.245
+      malignancy_rate: 0.04
+    size_distribution:
+      bucket_weights:
+        "<5mm": 0.42
+        "5-10mm": 0.38
+        "10-15mm": 0.11
+        "15-20mm": 0.05
+        "20-30mm": 0.03
+        ">30mm": 0.01
+    malignancy_rate_by_size:
+      "<5mm": 0.01
+      "5-10mm": 0.024
+      "10-15mm": 0.094
+      "15-20mm": 0.178
+      "20-30mm": 0.222
+      ">30mm": 0.362
+    lobe_distribution:
+      right_lung_upper_lobe: 0.30
+      right_lung_middle_lobe: 0.08
+      right_lung_lower_lobe: 0.18
+      left_lung_upper_lobe: 0.28
+      left_lung_lower_lobe: 0.16
+    applicable_source_datasets: ["DLCS24", "LUNA25", "LUNA16", "LNDbv4"]
+
+  NELSON:
+    full_name: "Nederlands-Leuvens Longkanker Screenings Onderzoek"
+    publication: "de Koning et al. NEJM 2020"
+    population: screening
+    n_participants: 7557
+    demographics:
+      age_range: [50, 75]
+      age_mean: 58.0
+      age_std: 5.5
+      sex_ratio_male: 0.84
+      smoking_status: ["Current", "Former"]
+      pack_years_min: 15
+    nodule_prevalence:
+      any_nodule: 0.50
+      malignancy_rate: 0.022
+    size_distribution:
+      bucket_weights:
+        "<5mm": 0.55
+        "5-10mm": 0.30
+        "10-15mm": 0.09
+        "15-20mm": 0.04
+        ">20mm": 0.02
+    malignancy_rate_by_size:
+      "<5mm": 0.005
+      "5-10mm": 0.014
+      "10-15mm": 0.063
+      "15-20mm": 0.156
+      ">20mm": 0.308
+    lobe_distribution:
+      right_lung_upper_lobe: 0.30
+      right_lung_middle_lobe: 0.08
+      right_lung_lower_lobe: 0.18
+      left_lung_upper_lobe: 0.28
+      left_lung_lower_lobe: 0.16
+    applicable_source_datasets: ["DLCS24", "LUNA25", "LUNA16", "LNDbv4"]
+
+  UKLS:
+    full_name: "UK Lung Cancer Screening Trial"
+    publication: "Field et al. Lancet Respir Med 2016"
+    population: screening
+    n_participants: 1994
+    demographics:
+      age_range: [50, 75]
+      sex_ratio_male: 0.52
+      smoking_status: ["Current", "Former"]
+      pack_years_min: 20
+    nodule_prevalence:
+      any_nodule: 0.34
+      malignancy_rate: 0.017
+    size_distribution:
+      bucket_weights:
+        "<5mm": 0.48
+        "5-10mm": 0.35
+        "10-15mm": 0.10
+        "15-20mm": 0.04
+        ">20mm": 0.03
+    lobe_distribution:
+      right_lung_upper_lobe: 0.30
+      right_lung_middle_lobe: 0.08
+      right_lung_lower_lobe: 0.18
+      left_lung_upper_lobe: 0.28
+      left_lung_lower_lobe: 0.16
+    applicable_source_datasets: ["DLCS24", "LUNA25", "LUNA16"]
+
+  DANTE:
+    full_name: "Detection And screening of early lung Neoplasm with LDCT"
+    publication: "Infante et al. AJRCCM 2009"
+    population: screening
+    n_participants: 1276
+    demographics:
+      age_range: [60, 75]
+      sex_ratio_male: 1.0
+      smoking_status: ["Current", "Former"]
+      pack_years_min: 20
+    nodule_prevalence:
+      any_nodule: 0.31
+      malignancy_rate: 0.028
+    size_distribution:
+      bucket_weights:
+        "<5mm": 0.40
+        "5-10mm": 0.37
+        "10-15mm": 0.13
+        "15-20mm": 0.06
+        ">20mm": 0.04
+    applicable_source_datasets: ["DLCS24", "LUNA25"]
+
+  MILD:
+    full_name: "Multicentric Italian Lung Detection Trial"
+    publication: "Pastorino et al. ERJ 2012"
+    population: screening
+    n_participants: 2376
+    demographics:
+      age_range: [49, 75]
+      sex_ratio_male: 0.66
+      smoking_status: ["Current", "Former"]
+      pack_years_min: 20
+    nodule_prevalence:
+      any_nodule: 0.28
+      malignancy_rate: 0.012
+    size_distribution:
+      bucket_weights:
+        "<5mm": 0.52
+        "5-10mm": 0.33
+        "10-15mm": 0.09
+        "15-20mm": 0.04
+        ">20mm": 0.02
+    applicable_source_datasets: ["DLCS24", "LUNA25", "LUNA16"]

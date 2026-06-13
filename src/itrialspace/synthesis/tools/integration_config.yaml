@@ -1,0 +1,76 @@
+# ============================================================================
+# iTrialSpace -> NodMAISI Integration Pipeline — Configuration
+# ============================================================================
+
+# -- Paths to NodMAISI model components -----------------------------------
+# Paths use ${VAR} placeholders expanded by itrialspace.config.settings.
+# Model weights are NOT bundled — set NODMAISI_MODELS_DIR to the directory holding
+# autoencoder.pt / diffusion_unet.pt / controlnet *.pt (see docs/installation.md).
+nodmaisi:
+  project_dir: ${ITRIALSPACE_ROOT}/src/itrialspace/synthesis
+  model_config: configs/config_maisi3d-rflow.json
+  controlnet_config: configs/infr_config_NoMAISI_controlnet.json
+  env_config: configs/infr_env_NoMAISI_DLCSD24_demo.json
+  # Model checkpoints (absolute via NODMAISI_MODELS_DIR, or relative to project_dir)
+  autoencoder_path: ${NODMAISI_MODELS_DIR}/autoencoder.pt
+  diffusion_unet_path: ${NODMAISI_MODELS_DIR}/diffusion_unet.pt
+  controlnet_path: ${NODMAISI_MODELS_DIR}/Experiments_NoMAISI_512xy_256z_771p25m_finetune_500epoch_best.pt
+
+# -- Inference parameters -------------------------------------------------
+inference:
+  num_inference_steps: 30
+  autoencoder_sliding_window_infer_size: [80, 80, 64]
+  autoencoder_sliding_window_infer_overlap: 0.25
+  noise_factor: 1.0
+  modality: 1              # 1 = CT
+  seed: 42
+  device: "cuda:0"
+
+# -- iTrialSpace mask parameters ------------------------------------------
+itrialspace:
+  nodule_label_value: 23   # Label value used by iTrialSpace for inserted nodules
+  # Base directory for resolving relative paths in iTrialSpace manifests/audits
+  base_dir: ${ITRIALSPACE_DATA_DIR}
+  # Root of iTrialSpace trial manifests (JSON/CSV with host_ct_path per case)
+  manifest_root: ${ITRIALSPACE_DATA_DIR}/manifests
+
+# -- Output structure -----------------------------------------------------
+output:
+  # Root for generated CTs.  {trial_name} is substituted at runtime.
+  root: ${ITRIALSPACE_OUTPUT_DIR}/generated_cts
+  # Per-case subdirectory template
+  case_dir_template: "case_{case_id}"
+  # Filenames inside each case directory
+  synthetic_ct_name: synthetic_ct.nii.gz
+  input_mask_name: input_mask.nii.gz
+  host_ct_link_name: host_ct.nii.gz
+  qc_dir_name: qc
+  audit_name: nodmaisi_audit.json
+
+# -- QC settings ----------------------------------------------------------
+qc:
+  enabled: true
+  # Number of axial slices to render (evenly spaced through the nodule region)
+  num_slices: 3
+  # Window level / width for CT display (HU)
+  window_center: -600
+  window_width: 1500
+  # PNG DPI
+  dpi: 150
+
+# -- Geometry constraints (from NodMAISI check_input) ---------------------
+geometry:
+  # Valid XY sizes for NodMAISI (first two dims must be equal)
+  valid_xy_sizes: [256, 384, 512]
+  # Valid Z sizes
+  valid_z_sizes: [128, 256, 384, 512, 640, 768]
+  # Target spacing for resampling if needed (null = use mask's native spacing)
+  target_spacing: null
+  # If true, resample mask to nearest valid size; if false, skip cases that don't fit
+  auto_resize: true
+
+# -- Conda / environment (for SLURM scripts) -----------------------------
+environment:
+  conda_module: ""
+  conda_env: ${ITRIALSPACE_CONDA_ENV}
+  monai_data_directory: ${ITRIALSPACE_ROOT}/src/itrialspace/synthesis

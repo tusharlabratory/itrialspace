@@ -1,0 +1,93 @@
+#!/bin/bash
+#SBATCH --job-name=NMap-Rebuild
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=48G
+#SBATCH --time=4:00:00
+#SBATCH --output=logs/rebuild_nodulemap-%j.out
+#SBATCH --error=logs/rebuild_nodulemap-%j.err
+
+# ===========================================================================
+#  NoduleMap Artifact Rebuild — Purge NLST3D
+#
+#  Deletes ALL existing NoduleMap artifacts and rebuilds from scratch.
+#  After the rebuild, NLST3D rows will be absent (it was removed from
+#  datasets.yaml).
+#
+#  Runs:
+#    1) Clean artifacts directory
+#    2) Rebuild 6 embedding models  (PCA_2D, PCA_32, UMAP_2D, UMAP_16,
+#       UMAP_32, TSNE_2D)
+#    3) Compute edge lists for all models (k=3,5,10,25)
+#    4) Verify NLST3D is absent from every rebuilt artifact
+#    5) Run pytest regression tests
+#
+#  Submit:  sbatch rebuild_nodulemap.sub
+#  Check:   tail -f logs/rebuild_nodulemap-<JOBID>.out
+# ===========================================================================
+
+set -euo pipefail
+
+echo "======================================================"
+echo "  NoduleMap Artifact Rebuild (Purge NLST3D)"
+echo "  Node:   $(hostname)"
+echo "  Date:   $(date)"
+echo "  Job ID: ${SLURM_JOB_ID:-local}"
+echo "======================================================"
+
+# ── Environment ──────────────────────────────────────────────────────────
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+echo "[$(date +%T)] Python: $(which python3)"
+echo "[$(date +%T)] conda env: $CONDA_DEFAULT_ENV"
+
+APP_DIR="${PROJ_DIR}"
+ARTIFACT_DIR="${NODULEMAP_ARTIFACTS:-${ITRIALSPACE_OUTPUT_DIR:-$APP_DIR}/nodulemap_artifacts}"
+cd "$APP_DIR"
+mkdir -p logs "$ARTIFACT_DIR"
+
+# ── Step 1: Verify NLST3D is absent from the resolved dataset registry ──
+echo ""
+echo "[$(date +%T)] ═══ Pre-flight: Checking the dataset registry ═══"
+python3 -c "
+from itrialspace.io.registry import DatasetRegistry
+reg = DatasetRegistry.from_yaml()
+assert reg.get('NLST3D') is None, 'NLST3D is active in the dataset registry — remove it before rebuilding.'
+print('OK — NLST3D is not in the resolved registry')
+"
+
+# ── Step 2: Clean + Rebuild all artifacts ───────────────────────────────
+echo ""
+echo "[$(date +%T)] ═══ Rebuilding all artifacts (clean) ═══"
+python3 -m itrialspace.apps.nodulemap.tools.rebuild_artifacts --clean --outdir "$ARTIFACT_DIR"
+echo ""
+echo "[$(date +%T)] ═══ Artifact rebuild complete ═══"
+
+# ── Step 3: Post-rebuild verification ───────────────────────────────────
+echo ""
+echo "[$(date +%T)] ═══ Running NLST3D purge verification ═══"
+python3 -m itrialspace.apps.nodulemap.tools.verify_purge --artifact-dir "$ARTIFACT_DIR"
+VERIFY_RC=$?
+
+if [ $VERIFY_RC -ne 0 ]; then
+    echo ""
+    echo "FATAL: Verification FAILED — NLST3D still present in artifacts!"
+    exit 1
+fi
+
+# ── Step 4: Run regression tests ────────────────────────────────────────
+echo ""
+echo "[$(date +%T)] ═══ Running pytest regression tests ═══"
+python3 -m pytest tests/nodulemap/test_models.py -v --tb=short 2>&1 || true
+echo ""
+echo "[$(date +%T)] ═══ Running pytest purge tests ═══"
+python3 -m pytest tests/nodulemap/test_nlst3d_purge.py -v --tb=short 2>&1
+
+echo ""
+echo "======================================================"
+echo "  Rebuild complete."
+echo "  Artifacts: $ARTIFACT_DIR"
+echo "  $(date)"
+echo "======================================================"

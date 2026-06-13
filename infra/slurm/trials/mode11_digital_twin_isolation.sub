@@ -1,0 +1,52 @@
+#!/bin/bash
+
+#SBATCH --job-name=iTS_M11_DTiso
+#SBATCH --mail-type=END,FAIL
+#SBATCH -p defq
+#SBATCH --ntasks=1
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=4
+#SBATCH --output=logs/mode11_digital_twin_isolation.out
+#SBATCH --error=logs/mode11_digital_twin_isolation.err
+
+echo "=== iTrialSpace Trial Mode 11: Digital Twin Isolation ==="
+echo "Job ID: $SLURM_JOB_ID"
+echo "Started: $(date)"
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+
+# ── Configuration ──────────────────────────────────────────────────────────
+RUNNER="${PROJ_DIR}/src/itrialspace/trials/run_trial.py"
+OUTPUT_BASE="${ITRIALSPACE_OUTPUT_DIR}/manifests/mode11_digital_twin_isolation"
+
+# ── Trial Parameters ──────────────────────────────────────────────────────
+# Digital twin isolation — one isolation case per native nodule per CT scan.
+# Matching is at the CT-scan level: each nodule is paired only with its own CT.
+# Patients with multiple CT scans (e.g. LUNA25) produce separate cases per CT.
+# Runs --all-patients for every dataset so every profiled nodule is covered.
+SEED=42
+
+# DATASETS=("DLCS24" "LUNA25" "LUNA16" "LUNGx" "LNDbv4" "NSCLCR" "IMDCT")   # real run
+DATASETS=("DLCS24")   # sample
+
+# ── Run ────────────────────────────────────────────────────────────────────
+for DS in "${DATASETS[@]}"; do
+    echo ""
+    echo "──────────────────────────────────────────────────────────────"
+    echo " Dataset: ${DS}"
+    echo "──────────────────────────────────────────────────────────────"
+
+    python3 "$RUNNER" \
+        --mode digital_twin_isolation \
+        --output-dir "${OUTPUT_BASE}/${DS}" \
+        --dataset "$DS" \
+        --max-patients 5 \
+        --max-nodules-per-patient 1 \
+        --seed $SEED
+
+    echo "  ${DS} done: $(date)"
+done
+
+echo ""
+echo "All datasets finished: $(date)"

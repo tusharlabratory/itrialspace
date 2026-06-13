@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=vlm_analyze
+#SBATCH --partition=defq
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=24G
+#SBATCH --time=2:00:00
+#SBATCH --output=logs/vlm_analyze-%j.out
+#SBATCH --error=logs/vlm_analyze-%j.err
+
+# ===========================================================================
+#  STEP 3/3 — Analyse results: accuracy, Δ-vs-plain, breakdowns, confusion,
+#  bootstrap CIs, McNemar significance, publication figures, and report.md.
+#  CPU-only. Runs the eval_analysis engine (auto-discovers what's present).
+#
+#  Env knobs:
+#    RESULTS  result root to analyse
+#             (default: $ITRIALSPACE_OUTPUT_DIR/vlm_eval_demo — the demo)
+#    SPLIT    split name under <RESULTS>/splits or a file path; "" = all cases
+#             (default: "" for the demo; use release_v1_full on the full dataset)
+#    OUT      output dir   (default: <RESULTS>/eval_analysis)
+#    NBOOT    bootstrap resamples   (default: 1000; 0 to skip)
+#
+#  DEMO:   sbatch infra/slurm/vlm_eval/analyze.sub
+#  FULL:   RESULTS=$ITRIALSPACE_DATA_DIR/vlm_dataset SPLIT=release_v1_full \
+#          sbatch infra/slurm/vlm_eval/analyze.sub
+# ===========================================================================
+
+ITS_ENV="${SLURM_SUBMIT_DIR:-$PWD}"; while [ "$ITS_ENV" != "/" ] && [ ! -f "$ITS_ENV/infra/slurm/env.sh" ]; do ITS_ENV="$(dirname "$ITS_ENV")"; done; source "$ITS_ENV/infra/slurm/env.sh"
+itrialspace_activate_conda
+set -uo pipefail
+
+RESULTS="${RESULTS:-${ITRIALSPACE_OUTPUT_DIR}/vlm_eval_demo}"
+SPLIT="${SPLIT-}"                 # default empty = all cases (note: '-' not ':-')
+NBOOT="${NBOOT:-1000}"
+OUT="${OUT:-${RESULTS}/eval_analysis}"
+
+cd "${PROJ_DIR}"
+mkdir -p logs
+
+echo "=== analyse — results=${RESULTS}  split=${SPLIT:-<all>}  out=${OUT} ==="
+
+SPLIT_ARG=()
+[ -n "${SPLIT}" ] && SPLIT_ARG=(--split "${SPLIT}")
+
+python -m itrialspace.evaluation.vlm_eval.eval_analysis \
+    --results "${RESULTS}" \
+    "${SPLIT_ARG[@]}" \
+    --out "${OUT}" \
+    --n-boot "${NBOOT}"
+rc=$?
+
+if [ "${rc}" -ne 0 ]; then
+    echo "[$(date +%T)] FAILED (exit ${rc}). See the .err log."; exit "${rc}"
+fi
+echo "[$(date +%T)] Done. Report: ${OUT}/report.md"
